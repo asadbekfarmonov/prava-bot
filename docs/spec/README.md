@@ -1,49 +1,62 @@
 # prava-bot — Specification
 
 `prava-bot` is a Telegram Mini App that prepares candidates for the **Uzbekistan
-driving-license theory exam** (YHQ — Yo'l Harakati Qoidalari). It is adapted from
-the SATStudy Bot architecture (FastAPI + React Telegram Mini App + PostgreSQL) with
-the domain changed from SAT to the Uzbek theory test.
+driving-license theory exam** (YHQ — Yo'l Harakati Qoidalari). It is adapted from the
+SATStudy Bot architecture (FastAPI + React Telegram Mini App + PostgreSQL) with the domain
+changed from SAT to the Uzbek theory test.
 
-The product goal is a preparation experience that is **as close to the real exam as
-possible** — same format, same media (photos **and** animations) — with **teaching
-explanations** on every practice question.
+The product goal is a preparation experience **as close to the real exam as possible** —
+same format, same media (photos **and** animations) — with **teaching explanations** on every
+practice question.
 
-## Source of truth for the exam rules
+## Source of truth for exam rules
 
-All exam facts in these specs come from
+Exam facts come from
 [`research/uzbekistan-driving-license.md`](../../research/uzbekistan-driving-license.md)
-(last verified 2026-08-31). If that research is updated, update
-[`01-exam-and-rules.md`](01-exam-and-rules.md) to match.
+(last verified 2026-08-31). If that research changes, update
+[`01-exam-and-rules.md`](01-exam-and-rules.md) **and** the backend exam configuration in the
+same change.
 
 ## Spec index
 
 | File | Purpose |
 | --- | --- |
-| [00-overview.md](00-overview.md) | Vision, scope, MVP boundary, non-goals, success metrics |
-| [01-exam-and-rules.md](01-exam-and-rules.md) | Official YHQ theory format, pass rule, categories, key facts |
-| [02-domain-model.md](02-domain-model.md) | Entities and data model, including the media model |
-| [03-features.md](03-features.md) | Practice, mistakes review, mock exam, readiness, admin studio |
-| [04-i18n.md](04-i18n.md) | Language strategy (Uzbek Latin v1, Russian later) |
-| [05-architecture.md](05-architecture.md) | Reused SATStudy stack, media pipeline, deployment, migrations |
-| [06-content-plan.md](06-content-plan.md) | Topic taxonomy, question targets, authoring workflow |
+| [00-overview.md](00-overview.md) | Vision, scope, MVP boundary, non-goals, metrics |
+| [01-exam-and-rules.md](01-exam-and-rules.md) | Official YHQ format; **single-source exam config**; our-app vs real-exam wording |
+| [02-domain-model.md](02-domain-model.md) | Entities: shared bank, translations, `Rule`, media, mock, practice, readiness |
+| [03-features.md](03-features.md) | Practice, explanations, mistakes, road-sign trainer, mock (continuous timer), readiness, admin |
+| [04-i18n.md](04-i18n.md) | Translation-ready schema; Uzbek Latin v1, Russian v2 |
+| [05-architecture.md](05-architecture.md) | Reused stack, object-storage media, exam config (not env), migrations, deploy |
+| [06-content-plan.md](06-content-plan.md) | Topic taxonomy, road-sign content, `Rule` governance, targets |
+| [07-readiness.md](07-readiness.md) | Fully specified readiness algorithm, states, and gate |
 
 ## Locked v1 decisions
 
 - **Category**: B only.
-- **Language**: Uzbek (Latin script) only. Russian and Cyrillic deferred to v2.
-- **Media**: static image, looping muted MP4/WebM video, and animated GIF.
-- **Exam fidelity**: 20 questions, single 25-minute timer, 2–5 options, exactly one
-  correct, **pass at ≥18/20** (max 2 mistakes). No hints or explanations during the mock.
-- **Practice**: immediate feedback with per-option explanations and a YHQ rule reference.
-- **Content**: original questions authored in the admin studio, each tagged with the
-  rule it teaches. No import of a third-party question bank until reuse rights are confirmed.
-- **Reuse from SATStudy**: streaks, daily goals, leaderboards, onboarding, admin studio.
-- **Dropped from SATStudy**: adaptive exam modules/routing, student-produced-response
-  (type-in) questions, the 400–1600 score model.
-- **Added vs SATStudy**: animation media, mistakes review queue, readiness score.
+- **Language**: Uzbek (Latin) only; schema is translation-ready for Russian in v2.
+- **Media**: static image, looping muted MP4/WebM video, and animated GIF — **stored in
+  object storage**, served via **content-addressed** URLs (`/api/question-media/{id}/{hash}`).
+- **One shared question bank**: practice and mocks use the same `Question` records. **No
+  separate exam bank and no mock templates.**
+- **Mock**: 20 random unique published questions (category + language matched, without
+  replacement, snapshotted per attempt); **continuous** 25-minute server-authoritative timer
+  (no pause/resume, auto-submit at expiry); 2–5 options; exactly one correct; **pass ≥18/20**;
+  no hints/explanations during the mock.
+- **Exam rules** live in a **single versioned domain config** (`app/domain/exam_config.py`),
+  **not** environment variables; each `MockAttempt` snapshots them.
+- **Practice** attempts are **repeatable** across sessions (`PracticeAnswer`); mock answers
+  are unique per attempt (`MockAnswer`).
+- **Rule provenance**: every publishable question links to one or more `Rule` records
+  (`QuestionRule`); free-form strings are not the legal foundation.
+- **Content**: original questions authored in the admin studio, each linked to its YHQ rule.
+  No third-party bank import until reuse rights are confirmed.
+- **Reuse from SATStudy**: streaks, daily goals, admin studio, onboarding.
+- **Dropped from SATStudy**: adaptive exam modules/routing, SPR (type-in), 400–1600 score,
+  mock templates, exam pause/resume, Desmos calculator.
+- **Added vs SATStudy**: animation media + object storage, `Rule`/translation tables,
+  mistakes review, road-sign trainer, readiness score.
 
 ## Deferred to v2
 
-Road-sign card trainer, situation trainer, spaced-repetition scheduling,
-exam-day process checklist, Russian + Cyrillic, additional categories (A/A1/C/D).
+Leaderboards; situation trainer; spaced-repetition; exam-day checklist; Russian + Cyrillic;
+additional categories (A/A1/C/D); Telegram reminder messages.

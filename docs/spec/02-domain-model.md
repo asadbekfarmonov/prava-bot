@@ -1,121 +1,229 @@
 # 02 — Domain model
 
-Adapted from the SATStudy SQLAlchemy models. Names below are logical; final table names
-follow the existing `snake_case` convention. Every entity keeps `id` (UUID string),
-`created_at`, `updated_at` unless noted.
+Adapted from the SATStudy SQLAlchemy models. Names are logical; final table names follow
+the existing `snake_case` convention. Every entity has `id` (UUID string), `created_at`,
+`updated_at` unless noted.
+
+## Design principles baked into this model
+
+- **One shared question bank.** Practice and mock exams use the **same `Question`**
+  records. There is no separate exam bank and **no mock templates**.
+- **Translation-ready now.** Language-specific text lives in translation tables so Russian
+  can be added later without a major migration. v1 writes only `uz` rows.
+- **Structured legal provenance.** Every publishable question links to one or more `Rule`
+  records; free-form strings are not the legal foundation.
+- **Media by reference.** Questions reference a `QuestionMedia` row; bytes live in object
+  storage, addressed by content hash (see [05-architecture.md](05-architecture.md)).
+- **Exam rules are snapshotted** onto each `MockAttempt` from the single exam config.
 
 ## Mapping from SATStudy
 
 | SATStudy | prava-bot | Change |
 | --- | --- | --- |
-| `Section` enum (math/reading_writing) | `Category` enum (`B`, later `A`,`A1`,`C`,`D`) | replace |
-| `Question.topic` / `.skill` (free text) | `Topic` (controlled) + `subtopic` + `rule_refs` | tighten |
-| `QuestionImage` (image only) | `QuestionMedia` (image / video / gif) | extend |
-| `AnswerOption` (A–D, one correct) | `AnswerOption` (2–5, one correct) | relax count |
-| SPR (`student_produced_response`) | **removed** | drop |
-| `ExamTemplate` adaptive 4-module | `MockTemplate` single 20-question set | simplify |
-| `ExamAttempt` + adaptive routing | `MockAttempt` single module + pass/fail | simplify |
-| 400–1600 score fields | pass/fail + correct count | replace |
+| `Section` enum (math/reading_writing) | `Category` enum (`B`; later `A`,`A1`,`C`,`D`) | replace |
+| `Question.topic`/`.skill` free text | `Topic` (controlled) + `subtopic` + `Rule` links | tighten |
+| text on `Question`/`AnswerOption` | `QuestionTranslation` / `AnswerOptionTranslation` | split out |
+| `QuestionImage` bytes-in-DB | `QuestionMedia` metadata + object-storage + hash | extend/externalise |
+| SPR (type-in) | **removed** | drop |
+| `ExamTemplate` (adaptive, 4 modules) + `ExamTemplateQuestion` | **removed** | drop |
+| `ExamAttempt` + adaptive routing + 400–1600 score | `MockAttempt` (single, pass/fail) | simplify |
+| `QuestionAttempt` (global unique per user+question) | `PracticeAnswer` (repeatable) + `MockAnswer` (unique per attempt) | split + fix |
+| — | `Rule`, `QuestionRule` | add |
 | — | `MistakeEntry` | add |
-| — | `ReadinessSnapshot` (or computed) | add |
+| — | readiness (computed; optional `ReadinessSnapshot`) | add |
 
 ## Enums
 
 - `Category`: `B` (v1). Reserved: `A`, `A1`, `C`, `D`.
-- `Topic`: the 15 YHQ groups from [06-content-plan.md](06-content-plan.md), e.g.
-  `general_rules`, `road_signs`, `road_markings`, `signals`, `intersections`,
-  `manoeuvring`, `speed_distance`, `overtaking`, `stopping_parking`, `vulnerable_users`,
-  `railway_crossings`, `motorways_special`, `vehicle_condition`, `transport_of_people_cargo`,
-  `emergencies_first_aid`.
-- `QuestionStatus`: `draft`, `reviewed`, `published`, `archived` (unchanged).
+- `Topic`: the 15 YHQ groups from [06-content-plan.md](06-content-plan.md).
+- `QuestionStatus`: `draft`, `reviewed`, `published`, `archived`.
 - `MediaType`: `image`, `video`, `gif`.
 - `MockStatus`: `in_progress`, `completed`, `abandoned`.
+- `Language`: `uz` (v1). Reserved: `ru`.
 
-## Question
+## Question and content (translation-ready)
 
 ```
 Question
   id
-  category            Category      (index)
-  topic               Topic         (index)
-  subtopic            str?          (free text within topic)
-  status              QuestionStatus (index)
-  language            str           = "uz"   (see 04-i18n.md)
-  prompt              text          (the question text; may be empty if media is self-contained)
-  options             [AnswerOption] (2–5)
-  media               QuestionMedia? (0 or 1)
-  short_explanation   text?         (shown in practice + review)
-  rule_refs           json[str]     (e.g. ["YHQ:13.9"]) — the rule(s) the question teaches
-  source_refs         json[str]?    (provenance / verification links)
-  difficulty          int           (1–3; drives mock variety, not the exam)
-  content_version     int           = 1
+  category            Category       (index)
+  topic               Topic          (index)
+  subtopic            str?
+  status              QuestionStatus  (index)
+  media_id            -> QuestionMedia.id?   (0 or 1 media item, language-neutral)
+  difficulty          int            (1..3; drives mock variety, NOT an exam blueprint)
+  is_sign_question    bool = false   # true => eligible for the road-sign trainer
+  content_version     int  = 1
   verified_at         date?
   created_by_user_id / updated_by_user_id
-```
 
-Publish validation (backend): non-empty prompt **or** media present; **2–5** options;
-**exactly one** `is_correct`; every option has an explanation; at least one `rule_ref`.
+QuestionTranslation
+  id
+  question_id         (index)
+  language            Language
+  prompt              text           # may be empty if the media is self-contained
+  short_explanation   text           # shown in practice + review (rule summary)
+  UNIQUE(question_id, language)
 
-## AnswerOption
-
-```
 AnswerOption
   id
-  question_id     (index)
-  label           str   ("A".."E")
-  text            text
-  position        int   (1..5)
-  is_correct      bool
-  explanation     text  (why right/wrong — shown after answering in practice/review)
+  question_id         (index)
+  position            int            (1..5)
+  is_correct          bool           # language-neutral (correctness never varies by language)
+
+AnswerOptionTranslation
+  id
+  answer_option_id    (index)
+  language            Language
+  text                text
+  explanation         text           # why this option is right/wrong (shown after answering)
+  UNIQUE(answer_option_id, language)
 ```
 
-Constraint: 2 ≤ options ≤ 5; exactly one `is_correct` when the question is published.
+Publish validation (backend), evaluated against the user-facing language(s) present:
+- media present **or** non-empty `prompt` in the primary language;
+- **2–5** `AnswerOption` rows; **exactly one** `is_correct`;
+- every option has a non-empty `explanation` in the primary language;
+- **at least one `QuestionRule`** (verified provenance) — see Rule model;
+- `short_explanation` present in the primary language.
 
-## QuestionMedia
+v1 primary language is `uz`. Russian rows are simply absent until v2.
 
-Replaces SATStudy's image-only model. One media item per question (v1).
+## Rule model (legal provenance)
+
+```
+Rule
+  id
+  code                str            # stable clause id, e.g. "YHQ:13.9"
+  title               str?
+  text_uz             text           # the rule text (uz v1; ru added later, see i18n)
+  source_url          str
+  source_document     str?
+  effective_from      date?
+  effective_to        date?
+  verified_at         date
+  version             int
+  status              enum(active, superseded, repealed)
+
+QuestionRule
+  id
+  question_id         (index)
+  rule_id             (index)
+  UNIQUE(question_id, rule_id)
+```
+
+This makes it possible to: display the rule behind an answer; find **every** question
+affected when a rule changes (query `QuestionRule` by `rule_id`); flag those questions for
+re-review after legislation changes; and store provenance. Optional free-form
+`Question.source_refs` (json) may still hold extra non-legal references, but legal
+provenance is the structured `Rule`/`QuestionRule` link.
+
+## Media (metadata in DB, bytes in object storage)
 
 ```
 QuestionMedia
   id
-  question_id     (unique, index)
-  media_type      MediaType         (image | video | gif)
-  content_type    str               (image/webp, video/mp4, video/webm, image/gif)
-  data            bytes (deferred)   — stored in DB like SATStudy images (see 05-architecture.md)
-  poster          bytes? (deferred)  — still frame for video (first-frame thumbnail)
-  alt_text        text?
-  duration_ms     int?               (video/gif; for UI + validation)
-  width / height  int?
-  updated_at
+  media_type          MediaType      (image | video | gif)
+  content_type        str            (image/webp | video/mp4 | video/webm | image/gif)
+  content_hash        str            # sha256 of the stored bytes; used in the URL
+  storage_key         str            # object-storage key/path
+  poster_hash         str?           # content hash of the video poster still (if video)
+  alt_text_uz         text?          # language-specific only if the image bakes in text
+  width / height      int?
+  duration_ms         int?           (video/gif)
+  byte_size           int
 ```
 
-Serving: `GET /api/questions/{id}/media` streams `data` with the right `content_type` and
-long immutable cache; drafts are admin-only (mirrors SATStudy image auth). Video is served
-with `Accept-Ranges` where practical. See [05-architecture.md](05-architecture.md) for the
-upload pipeline, size limits, and CSP `media-src`.
+- Bytes live in **S3-compatible object storage** (R2/S3/MinIO). Postgres stores only
+  metadata + `content_hash` + `storage_key`.
+- Serving URL is **content-addressed**: `/api/question-media/{media_id}/{content_hash}`
+  (or a direct/signed object-storage URL). Because the hash changes when an admin replaces
+  media, the URL changes too, so **long immutable caching is safe** and stale media is
+  impossible. See [05-architecture.md](05-architecture.md) for the DB-media MVP fallback and
+  its explicit size threshold.
+- Media is **language-neutral** and shared across translations, except images with baked-in
+  text (avoid where possible).
 
-## Practice
+## Practice (repeatable attempts)
 
 ```
-PracticeSession       (user_id, category, topic?, source, started_at, ended_at?)
-QuestionAttempt
+PracticeSession
   id
   user_id             (index)
+  category            Category
+  topic               Topic?         # null => mixed
+  source              enum(topic, mixed, mistakes, sign_trainer)
+  started_at / ended_at?
+
+PracticeAnswer
+  id
+  practice_session_id (index)
   question_id
-  practice_session_id?
   selected_option_id?
   is_correct          bool
   time_spent_seconds  int?
   attempted_at
-  unique(user_id, question_id, mock_attempt_id?)   # see note
 ```
 
-Note: SATStudy enforces one attempt per (user, question) globally so practice never repeats
-a question. For prava-bot we want **repeat practice** (especially mistakes review), so the
-uniqueness is scoped per session/mock rather than globally. Exact constraint decided in
-implementation, but the requirement is: a user can re-answer a question in a later session.
+There is **no** global `(user, question)` uniqueness. A user may answer the same question
+again in a later session — this is required for **mistakes review** and normal re-practice.
+`PracticeAnswer` is intentionally distinct from `MockAnswer`.
 
-## MistakeEntry
+## Mock exam (self-contained snapshot)
+
+```
+MockAttempt
+  id
+  user_id             (index)
+  category            Category
+  language            Language                 # snapshot of the user's language at start
+  status              MockStatus
+  started_at
+  expires_at                                   # = started_at + time_limit_seconds (authoritative)
+  completed_at?
+  # snapshot of the applicable exam config (from the single source of truth):
+  exam_config_version int
+  question_count      int                      # snapshot (20)
+  time_limit_seconds  int                      # snapshot (1500)
+  pass_correct        int                      # snapshot (18)
+  # results (set on submit/expiry):
+  correct_count       int?
+  answered_count      int?
+  passed              bool?                     # correct_count >= pass_correct
+  result_json         json?                     # per-topic breakdown, mistakes, avg answer time
+
+MockQuestion
+  id
+  mock_attempt_id     (index)
+  question_id
+  position            int
+  UNIQUE(mock_attempt_id, question_id)          # unique, without replacement
+  UNIQUE(mock_attempt_id, position)             # stable order
+
+MockAnswer
+  id
+  mock_attempt_id     (index)
+  question_id
+  selected_option_id?
+  is_correct          bool?                      # graded at submit
+  marked_for_review   bool = false
+  answered_at?
+  UNIQUE(mock_attempt_id, question_id)
+```
+
+Start-of-mock behaviour (see [03-features.md](03-features.md) for the flow):
+- select **20 random, unique, published** questions where `category` = user's category and a
+  `uz` translation exists; **without replacement**; persist them as `MockQuestion` rows with
+  positions;
+- set `started_at` and `expires_at = started_at + time_limit_seconds`;
+- snapshot the exam-config values;
+- reopening/refreshing returns the **same** snapshot — it never regenerates the set or the
+  deadline.
+
+Result semantics: **pass/fail** (`passed`), not a 400–1600 score. `result_json` records the
+missed questions with their topics and the average answer time for the review screen.
+
+## Mistakes
 
 ```
 MistakeEntry
@@ -125,81 +233,36 @@ MistakeEntry
   first_missed_at
   last_missed_at
   miss_count          int
-  resolved            bool          (set true once answered correctly enough times)
+  resolved            bool                       # true once re-answered correctly (v1)
   last_result         bool
+  UNIQUE(user_id, question_id)
 ```
 
-Drives the **Mistakes review** feature. (Spaced-repetition scheduling is v2; v1 just
-queues unresolved mistakes, hardest/most-recent first.)
+A wrong answer in practice **or** mock creates/updates the entry. v1 resolves an entry on
+the first correct re-answer; spaced-repetition scheduling is v2.
 
-## Mock exam
+## Readiness (computed; optional snapshot)
+
+The algorithm, components, thresholds, and "not enough data" behaviour are fully specified
+in [07-readiness.md](07-readiness.md). Thresholds/weights live in domain configuration
+(alongside the exam config), not env vars.
 
 ```
-MockTemplate
+ReadinessSnapshot   (optional cache)
   id
-  name
-  category            Category
-  status              (draft | published | archived)
-  question_count      int   = 20
-  time_limit_seconds  int   = 1500
-  pass_correct        int   = 18       # per-category, from exam constants
-  selection           enum  (random_from_bank | fixed_set)
-  # fixed_set uses MockTemplateQuestion rows; random_from_bank samples at start time
-
-MockTemplateQuestion (template_id, question_id, position)   # only for fixed_set
-
-MockAttempt
-  id
-  user_id             (index)
-  mock_template_id?
+  user_id
   category
-  status              MockStatus
-  started_at / completed_at
-  time_limit_seconds
-  remaining_seconds
-  correct_count       int?
-  answered_count      int?
-  passed              bool?           # correct_count >= pass_correct
-  result_json         json?           # per-topic breakdown, mistakes list, avg time
-
-MockAnswer
-  id
-  mock_attempt_id     (index)
-  question_id
-  position
-  selected_option_id?
-  is_correct          bool?
-  marked_for_review   bool
-```
-
-Result semantics: **pass/fail** (`passed`), not a 400–1600 score. `result_json` records the
-mistakes with their topics and average answer time for the review screen.
-
-## Readiness
-
-Readiness may be computed on read or snapshotted. Model (from research §16):
-
-```
-readiness = 0.40 * recent_mock_performance
-          + 0.30 * topic_mastery
-          + 0.20 * mistake_recovery
-          + 0.10 * consistency_recency
-```
-
-"Exam-ready" gate (advisory, shown to user):
-- ≥ 3 recent mock exams, **and**
-- ≥ 2 of the last 3 at ≥18/20, **and**
-- no major topic below 70%, **and**
-- enough unique questions attempted to avoid memorising a small sample.
-
-```
-ReadinessSnapshot? (optional cache)
-  user_id, category, score, computed_at, components_json
+  score               int?               # null when "not enough data"
+  label               enum(insufficient_data, initial, ready_estimate)
+  exam_ready          bool
+  components_json     json                # the four component scores + confidence inputs
+  computed_at
 ```
 
 ## Reused as-is from SATStudy
 
-`User`, `StudentProfile` (drop SAT-specific score fields; keep display_name, category,
-target_exam_date, daily_goal, timezone, onboarding_completed), `Streak`,
-`StudentDailyStat`, `StudentWeeklyStat`, `AdminAuditEvent`, `NotificationEvent` (v2).
-Leaderboards reuse the daily/weekly stat + scoreboard logic unchanged.
+`User`; `StudentProfile` (keep display_name, category, target_exam_date, daily_goal,
+timezone, language, onboarding_completed; drop SAT score fields); `Streak`,
+`StudentDailyStat`, `StudentWeeklyStat` (daily goals/streaks kept — cheap to reuse);
+`AdminAuditEvent`. Leaderboard/scoreboard tables and `NotificationEvent` are **deferred**
+(see [03-features.md](03-features.md#scope--priorities)).
