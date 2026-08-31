@@ -176,11 +176,12 @@ QuestionMedia            # immutable: identity == content hash
   media_type           MediaType   (image | video | gif)
   content_type         str         (image/webp | video/mp4 | video/webm | image/gif)
   content_hash         str         # sha256 of stored bytes; part of the URL
-  storage_key          str         # object-storage key (random, non-user-controlled)
-  poster_hash          str?        # content hash of the video poster still
+  storage_key          str         # bucket object key (random, server-generated, non-user-controlled)
+  poster_storage_key   str?        # bucket key of the video poster still (first frame)
   width / height       int?
   duration_ms          int?
   byte_size            int
+  created_at
 
 QuestionMediaTranslation
   id
@@ -190,10 +191,13 @@ QuestionMediaTranslation
   UNIQUE(media_id, language)
 ```
 
-- Bytes live in S3-compatible object storage (see [05-architecture.md](05-architecture.md));
-  Postgres holds only metadata + hash + key.
-- Serving URL is content-addressed: `/api/question-media/{media_id}/{content_hash}` → safe
-  immutable caching; replacing media yields a new row/URL, so stale media is impossible.
+- Bytes live in the **Railway S3-compatible Storage Bucket** (production v1), accessed through
+  an S3-compatible `MediaStorage` adapter so R2/S3 remain drop-in migration options (see
+  [13-deployment.md](13-deployment.md)); Postgres holds only metadata + hash + keys.
+- Serving URL is content-addressed: `/api/media/{media_id}/{content_hash}` → safe long-lived
+  caching; replacing media yields a new hash/URL, so stale media is impossible. The backend
+  resolves metadata, checks visibility, then streams the object or redirects to a **short-lived
+  presigned GET** URL. Draft/unpublished media is admin-only (private).
 - No `alt_text_uz` on the media entity; alt text is a translation.
 - Media is language-neutral and shared across translations, except images with baked-in text
   (avoid).

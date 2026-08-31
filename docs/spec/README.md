@@ -33,16 +33,23 @@ Exam facts come from
 | [10-ranking.md](10-ranking.md) | Learning-weighted server-side points, surfaces, privacy, anti-cheat |
 | [11-content-acquisition.md](11-content-acquisition.md) | Official sources, existing products, partnership terms, original-content pipeline + asset system |
 | [12-ui-exam-mode.md](12-ui-exam-mode.md) | Exam-focused UI; verified vs approximation; animation semantics |
+| [13-deployment.md](13-deployment.md) | Railway production: single service, Postgres, Storage Bucket, webhook, /health, migrations, env |
 
 ## Locked v1 decisions
 
+- **Production hosting: Railway** — one project with a **single application service** (FastAPI
+  + aiogram **webhook** + built React Mini App + light jobs), **Railway PostgreSQL**, and the
+  **Railway S3-compatible Storage Bucket**. Production uses **webhooks** (not long polling);
+  Telegram webhook at `/telegram/webhook`; Railway healthcheck at `/health`; app binds `$PORT`.
+  Details: [13-deployment.md](13-deployment.md).
 - **Category** B only; **language** Uzbek (Latin) only; schema translation-ready for Russian.
 - **One shared question bank**: practice and mocks use the same questions. **No separate exam
   bank, no mock templates.**
 - **Immutable published `QuestionVersion`**: attempts pin the exact version shown; editing a
   published question creates a new version; historical mocks never change.
-- **Media**: image / looping muted MP4/WebM / GIF (SVG rejected), in **object storage**, served
-  via **content-addressed** URLs (`/api/question-media/{media_id}/{content_hash}`); immutable.
+- **Media**: image / looping muted MP4/WebM / GIF (SVG rejected), stored in the **Railway
+  S3-compatible Storage Bucket** (private) via an S3-compatible adapter, served via
+  **content-addressed** URLs (`/api/media/{media_id}/{content_hash}`); immutable.
 - **Mock**: 20 random unique published questions (category+language, without replacement,
   version-pinned, snapshotted per attempt); **continuous** 25-minute **server-authoritative**
   timer (no pause, auto-submit at expiry); 2–5 options; one correct; **pass ≥18/20**; **no

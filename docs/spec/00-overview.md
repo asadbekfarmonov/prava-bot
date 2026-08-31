@@ -13,10 +13,16 @@ independent-study product genuinely useful.
 ## Product shape
 
 A single platform: a **React mini web app** opened as a **Telegram Web App** (study, mocks,
-progress), plus a **Telegram bot** that launches it (retention nudges are v2). Exam scoring and
-answer correctness are **deterministic backend logic**; an LLM is never asked whether an answer
-is correct (LLM use is limited to drafting/rephrasing explanations that are human-reviewed —
+progress), plus a **thin Telegram bot** that only sends `/start` → welcome + a button to open
+the Mini App (retention nudges are v2). Exam scoring and answer correctness are **deterministic
+backend logic**; an LLM is never asked whether an answer is correct (LLM use is limited to
+drafting/rephrasing explanations that are human-reviewed —
 [06-content-plan.md](06-content-plan.md#llm-assistance-policy)).
+
+**Deployment**: **Railway** — one project with a single application service (FastAPI + aiogram
+webhook + built Mini App + light jobs), Railway PostgreSQL, and a Railway S3-compatible Storage
+Bucket for media. Production uses Telegram **webhooks**. Full design:
+[13-deployment.md](13-deployment.md).
 
 ## v1 scope (MVP)
 

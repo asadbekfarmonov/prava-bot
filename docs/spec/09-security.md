@@ -154,10 +154,13 @@ results (answers, mocks, mistakes, readiness, points); timezone; optional target
 
 ## Object storage
 
-- **Private bucket**; no public "list"; objects served via the app (content-addressed) or via
-  **short-lived signed URLs**. Published media may be publicly cacheable **behind the
-  content-hash URL**; drafts require auth.
-- Bucket **permissions** least-privilege; the app's credentials can put/get its prefix only.
+- **Railway S3-compatible Storage Bucket** (production v1), **private**; no public "list".
+  Published media is served via the app's content-addressed route
+  `/api/media/{media_id}/{content_hash}` (stream) or a **short-lived presigned GET**; draft
+  media requires admin auth. Published media is cacheable **behind the content-hash URL**.
+- **Storage keys are server-generated** (never derived from client filenames); credentials are
+  least-privilege (put/get on the app's prefix only). Accessed only through the `MediaStorage`
+  adapter so provider migration (R2/S3) does not change domain code.
 - **No object overwrite** for immutable media (new hash = new key); an **orphan-cleanup** job
   removes media rows/objects not referenced by any version after a grace period.
 

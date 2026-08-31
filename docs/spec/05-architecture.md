@@ -52,30 +52,52 @@ applicable values (`exam_config_version`, `question_count`, `time_limit_seconds`
 `pass_correct`). Deployment config (DB/storage creds, secrets, admin ids, rate limits) stays
 in env.
 
-## Media pipeline (object storage + content-addressed, immutable)
+## Media pipeline (Railway Storage Bucket, content-addressed, immutable)
 
-- Bytes in **S3-compatible object storage** (Cloudflare R2 / AWS S3 / MinIO); Postgres holds
-  `QuestionMedia` metadata + `content_hash` + `storage_key`.
+- **Production v1 provider: the Railway S3-compatible Storage Bucket** (same project as the
+  app + Postgres). Not R2/S3/MinIO — but accessed only through an **S3-compatible
+  abstraction** so those remain migration options (see storage adapter + [13-deployment.md](13-deployment.md)).
+  Postgres holds `QuestionMedia` metadata + `content_hash` + `storage_key`/`poster_storage_key`.
+  **Do not** use a Railway Volume for media and **do not** store media bytes in Postgres.
 - **Upload (admin only)**: sniff type from bytes (never trust client `Content-Type`);
   **reject SVG**; images → WebP; validate GIF (frame/pixel caps); validate video
   container/codec, size, duration; **no server transcoding v1**; generate a first-frame poster
-  for video; compute `content_hash`; write to a **private, random storage key**. Full upload
-  threat model: [09-security.md](09-security.md#media-upload-security).
-- **Serving**: content-addressed `/api/question-media/{media_id}/{content_hash}` (stream from
-  storage or redirect to a short-lived signed URL). Hash changes on replacement → new URL, so
-  `Cache-Control: public, max-age=31536000, immutable` is safe (no stale media). **Do not** use
-  a by-question-id URL with immutable caching. Draft media is admin-only; published media is
-  cacheable behind the hash. Video served with range support.
-- **Object storage** is a **private bucket**, least-privilege creds, no public listing,
-  no overwrite of immutable objects, with an orphan-cleanup job
-  ([09-security.md](09-security.md#object-storage)).
+  for video; compute `content_hash`; write to a **private, server-generated storage key**. Full
+  upload threat model: [09-security.md](09-security.md#media-upload-security). Admin upload may
+  use a **presigned PUT** (backend issues the URL, then validates + confirms the hash before the
+  media becomes usable) or backend-proxied upload.
+- **Serving**: content-addressed `/api/media/{media_id}/{content_hash}`. The backend resolves
+  metadata, checks visibility, then **streams the object or redirects to a short-lived presigned
+  GET**. Hash changes on replacement → new URL, so `Cache-Control: public, max-age=31536000,
+  immutable` is safe (no stale media). **Do not** use `/api/questions/{id}/media` with immutable
+  caching. Draft media is admin-only (private, streamed or short-lived presigned); published
+  media is cacheable behind the hash. Video served with range support.
+- Railway buckets are **private**: least-privilege creds, no public listing, no overwrite of
+  immutable objects, orphan-cleanup job ([09-security.md](09-security.md#object-storage)).
+
+### Storage adapter (portability)
+
+Domain/business code never talks to Railway directly. Define a `MediaStorage` port:
+
+```
+MediaStorage
+  put(key, bytes, content_type)
+  get(key) -> stream
+  delete(key)
+  create_download_url(key, ttl) -> presigned GET
+  create_upload_url(key, constraints, ttl) -> presigned PUT
+```
+
+Production implementation: **`S3CompatibleMediaStorage`** configured for the Railway bucket
+via `MEDIA_STORAGE_*` env. Migrating to R2/S3 changes only adapter configuration, not domain
+code.
 
 ### DB-media MVP fallback (explicit tradeoff)
 
 Temporarily storing bytes in Postgres is acceptable **only** for images/GIFs and small clips;
-the URL stays content-addressed. Object storage becomes **mandatory** once any of: total media
-> ~1 GB, any single video > ~5 MB, or video at scale. Videos should go to object storage from
-day one if at all possible.
+the URL stays content-addressed. The Railway bucket is the default from day one; videos must
+never live in Postgres. Bucket becomes strictly required once any of: total media > ~1 GB,
+any single video > ~5 MB, or video at scale.
 
 ### CSP
 
@@ -123,11 +145,27 @@ XSS (plain-text content, no raw HTML) + CSP; media-upload hardening (SVG rejecte
 Fresh Alembic history (new DB). Every model change ships a migration; `alembic upgrade head`
 must apply cleanly on startup and in the pre-push gate.
 
-## Deployment
+## Deployment (Railway — see 13-deployment.md)
 
-New, separate Railway service; new bot token; new Postgres DB; object-storage bucket — fully
-independent from SATStudy. Seed script in `app/scripts/` loads the initial bank (questions +
-versions + translations + rules + media metadata).
+**Production hosting is Railway**, one project containing a **single application service**
+(FastAPI backend + aiogram **webhook** + built React Mini App + lightweight jobs),
+**Railway PostgreSQL**, and the **Railway S3-compatible Storage Bucket**. Split services later
+only if scale requires it. New bot token, new DB, new bucket — independent from SATStudy.
+
+Application routes:
+
+```
+/                    React Telegram Mini App (built assets)
+/api/*               REST API
+/api/media/{id}/{hash}   content-addressed media (stream or presigned redirect)
+/telegram/webhook    Telegram Bot API webhook (production uses webhooks, NOT long polling)
+/health              Railway healthcheck (traffic only after it succeeds)
+```
+
+Lifecycle: GitHub `main` → Railway build (Docker: Vite build → FastAPI image) → Alembic
+migrate → app starts → `/health` succeeds → receives traffic. The app **binds Railway's
+`PORT`** (never hard-coded). Full deployment/lifecycle/migration-safety detail lives in
+[13-deployment.md](13-deployment.md). Seed script in `app/scripts/` loads the initial bank.
 
 ## Testing
 
