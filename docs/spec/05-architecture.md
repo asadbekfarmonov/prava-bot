@@ -133,9 +133,11 @@ XSS (plain-text content, no raw HTML) + CSP; media-upload hardening (SVG rejecte
 
 - **Deployment env**: `APP_ENV`, `APP_DEBUG`, `DATABASE_URL`, `BOT_TOKEN`, `BOT_USERNAME`,
   `SESSION_SECRET`, `TELEGRAM_WEBHOOK_ENABLED/SECRET`, `ADMIN_TELEGRAM_IDS`, `MINI_APP_URL`,
-  `DEV_AUTH_ENABLED`, `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS`, rate-limit vars; object storage:
-  `MEDIA_STORAGE_BUCKET/ENDPOINT/ACCESS_KEY/SECRET_KEY`, `MEDIA_PUBLIC_BASE_URL`, upload caps
-  `MAX_IMAGE_BYTES`/`MAX_VIDEO_BYTES`/`MAX_VIDEO_DURATION_MS`.
+  `DEV_AUTH_ENABLED`, `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS`, rate-limit vars; media storage (S3
+  adapter for the Railway bucket): `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`,
+  `ENDPOINT`, `MEDIA_PUBLIC_BASE_URL`, upload caps `MAX_IMAGE_BYTES`/`MAX_VIDEO_BYTES`/
+  `MAX_VIDEO_DURATION_MS`. `MINI_APP_URL=https://app.prava.uz`. Full list + backups/cron:
+  [13-deployment.md](13-deployment.md).
 - **Domain config (NOT env)**: exam rules + readiness + ranking thresholds in
   `app/domain/exam_config.py`. `admin` allowlist is env (`ADMIN_TELEGRAM_IDS`) but effective
   capability is the `AdminRole` resolved server-side.

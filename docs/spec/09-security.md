@@ -161,8 +161,9 @@ results (answers, mocks, mistakes, readiness, points); timezone; optional target
 - **Storage keys are server-generated** (never derived from client filenames); credentials are
   least-privilege (put/get on the app's prefix only). Accessed only through the `MediaStorage`
   adapter so provider migration (R2/S3) does not change domain code.
-- **No object overwrite** for immutable media (new hash = new key); an **orphan-cleanup** job
-  removes media rows/objects not referenced by any version after a grace period.
+- **No object overwrite** for immutable media (new hash = new key); a daily **orphan-cleanup**
+  job (Railway Cron) removes media rows/objects not referenced by any version **after a 30-day
+  grace period**. No hard delete while an object is still referenced.
 
 ## Security tests (explicit)
 

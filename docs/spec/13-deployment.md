@@ -103,9 +103,11 @@ if now >= attempt.expires_at:
 ```
 
 This applies to: loading the current mock, saving an answer, manual submit, and reopening the
-Mini App. A **lightweight sweep job** may periodically finalize abandoned/expired attempts, but
-it is only a backstop — an expired attempt is finalized immediately the next time it is
-accessed. See [05-architecture.md](05-architecture.md#mock-timer--integrity-server-authoritative).
+Mini App. A **Railway Cron** sweep (every 15 min) finalizes abandoned/expired attempts as a
+**backstop only (cleanup)** — an expired attempt is finalized immediately the next time it is
+accessed, and correctness never depends on the cron running on time. See
+[05-architecture.md](05-architecture.md#mock-timer--integrity-server-authoritative) and
+Scheduled maintenance (below).
 
 ## Environment variables (deployment/runtime only)
 
@@ -127,20 +129,21 @@ MINI_APP_URL=https://app.prava.uz
 ADMIN_TELEGRAM_IDS=...
 DEV_AUTH_ENABLED=false               # dev login unavailable in production
 
-# Media storage adapter (Railway bucket; names may vary by Railway integration —
-# the storage adapter centralizes configuration):
-MEDIA_STORAGE_ENDPOINT=...
-MEDIA_STORAGE_BUCKET=...
-MEDIA_STORAGE_ACCESS_KEY=...
-MEDIA_STORAGE_SECRET_KEY=...
+# Media storage adapter — Railway S3-compatible Storage Bucket (locked names):
+BUCKET=...
+ACCESS_KEY_ID=...
+SECRET_ACCESS_KEY=...
+REGION=...
+ENDPOINT=...
 MEDIA_PUBLIC_BASE_URL=...            # optional CDN/base for presigned/download URLs
 MAX_IMAGE_BYTES=...
 MAX_VIDEO_BYTES=...
 MAX_VIDEO_DURATION_MS=...            # optional
 ```
 
-Exact Railway-provided bucket variable names may differ; the `MediaStorage` adapter reads them
-from one central config so only the adapter changes if names differ.
+The `MediaStorage` adapter reads exactly these five keys (`BUCKET`, `ACCESS_KEY_ID`,
+`SECRET_ACCESS_KEY`, `REGION`, `ENDPOINT`) from one central config; migrating to R2/S3 only
+changes their values.
 
 ### NOT environment variables (domain config)
 
@@ -158,11 +161,48 @@ enforces server-side authorization: authenticated Telegram user + `AdminRole` + 
 permission ([08-admin.md](08-admin.md), [09-security.md](09-security.md#admin-security)).
 Hidden frontend routes are never a security control.
 
-## Open deployment/ops questions (need a product/ops decision)
+## Domain & TLS
 
-1. Final production domain (`app.prava.uz` assumed) and DNS/TLS on Railway.
-2. Exact Railway bucket integration + its provided env var names (adapter absorbs the diff).
-3. When to switch startup migrations → release-phase/advisory-lock (i.e. when we go multi-instance).
-4. Whether the stale-mock sweep + orphan-media cleanup run in-process (asyncio task) or as a
-   separate Railway cron/service.
-5. Backup/retention policy for Postgres and the bucket.
+- Production domain: **`app.prava.uz`**, with **Railway-managed TLS**.
+- `MINI_APP_URL=https://app.prava.uz`; the Telegram webhook is registered to
+  `https://app.prava.uz/telegram/webhook`.
+
+## Scheduled maintenance (Railway Cron)
+
+Both are **cleanup/backstop** jobs — never authoritative for correctness:
+
+- **Expired-mock sweep — every 15 min**: finalizes abandoned/expired `MockAttempt`s that were
+  never reopened. Request-time enforcement (`now >= expires_at → finalize`) remains the
+  authority; this cron only catches attempts no one touched again.
+- **Orphan-media cleanup — daily**: deletes bucket objects + `QuestionMedia` rows not
+  referenced by any question version, **after the 30-day grace period** (below).
+
+## Backups & retention
+
+**PostgreSQL**:
+- daily Railway backup, **6-day** retention;
+- weekly backup, **1-month** retention;
+- monthly backup, **3-month** retention;
+- **PITR** enabled (~4-week window);
+- an additional **daily logical `pg_dump`** (independent of Railway snapshots).
+
+**Media (bucket)**:
+- assets are **immutable/versioned** (content-addressed); replacing media creates a new object.
+- **No hard delete while an object is still referenced** by any question version.
+- **Orphan grace period: 30 days** — unreferenced objects are only removed by the daily cron
+  after 30 days.
+- **Offsite mirror**: planned later (a second-region/provider copy), not v1.
+
+## Resolved deployment decisions
+
+Domain (`app.prava.uz`) + Railway TLS; media = Railway bucket via S3 adapter
+(`BUCKET`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY`/`REGION`/`ENDPOINT`); migrations = startup Alembic
+for single-instance v1, dedicated migration/release phase when multi-instance; maintenance via
+Railway Cron (15-min mock sweep, daily orphan cleanup); backups + retention as above; media
+orphan grace 30 days.
+
+## Remaining open items (revisit later, not blocking v1)
+
+1. **Offsite media mirror** — provider/region and cadence when we add it.
+2. **Multi-instance cutover** — the exact traffic point at which we move from startup-Alembic to
+   the dedicated migration/release phase.
