@@ -29,7 +29,19 @@ the exam configuration, not a hard-coded literal, so A1/others can be added late
 
 During the mock there must be **no** help: no study materials, no explanations, no hints,
 no correct-answer reveal until submission or time expiry. This mirrors the official rule
-that the exam assesses independent knowledge.
+that the exam assesses independent knowledge. The exam-focused UI and its integrity controls
+are specified in [12-ui-exam-mode.md](12-ui-exam-mode.md) and
+[09-security.md](09-security.md#exam-integrity-critical).
+
+### Verified vs. unverified exam behaviour
+
+Verified (from the research doc): question count, single 25-minute timer, 2–5 options, one
+correct, auto-end at expiry, static/animated questions, results shown after completion, no
+aids during the exam. **Not yet verified**: the exact terminal visual layout and whether the
+official exam allows **replaying an animation** (and how many times). Our UI **approximates**
+the terminal and must not be described as an "exact copy" until verified; animation-replay
+semantics are a research target — see
+[12-ui-exam-mode.md](12-ui-exam-mode.md#media-in-exam-mode).
 
 ## How questions are chosen — our app vs. the real exam
 

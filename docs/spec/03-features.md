@@ -2,7 +2,7 @@
 
 ## Scope & priorities
 
-v1 feature priority order:
+v1 priority order:
 
 1. **Practice** (by topic / mixed)
 2. **Explanations** (per-option + rule, after answering)
@@ -10,158 +10,136 @@ v1 feature priority order:
 4. **Road signs** trainer
 5. **Mock exams** (full real-exam fidelity)
 6. **Readiness / progress**
+7. **Rankings** (competitive but learning-weighted)
 
-**Daily goals and streaks** are kept because they are cheap to reuse from SATStudy.
-**Leaderboards are deferred** (no strong v1 product reason; they add ranking/scoreboard
-surface and social pressure that is not core to passing the theory test). Deferred to v2:
-situation trainer, spaced-repetition scheduling, exam-day checklist, Russian/Cyrillic,
-additional categories, Telegram reminder messages.
+**Daily goals and streaks** are kept (cheap; also feed ranking consistency). **Rankings are a
+v1 feature** ([10-ranking.md](10-ranking.md)). Deferred to v2: situation trainer,
+spaced-repetition, exam-day checklist, Russian/Cyrillic, additional categories, Telegram
+reminder messages.
 
 ## Onboarding
 
-Minimal, single screen (no long form before the first question):
-- display name;
-- category (default **B**, only option in v1);
-- language (**uz** only in v1; the field exists for v2);
-- optional target exam date;
-- timezone (auto-detected, editable).
+Minimal, single screen: display name; category (B, only option in v1); language (uz only in
+v1); optional target exam date; timezone. Then an optional, skippable **10-question
+diagnostic**.
 
-Then optionally offer a short **10-question diagnostic** that seeds the initial readiness
-estimate and weak-topic list. The diagnostic is skippable.
+### Diagnostic output (NOT readiness)
+
+The diagnostic never shows an exam-readiness percentage. It shows a raw score and topic
+guidance, and seeds the weak-topics list ([07-readiness.md](07-readiness.md#diagnostic-is-not-readiness)):
+
+```
+Boshlang'ich natija: 7/10
+
+Kuchli mavzular: Yo'l belgilari, To'xtash va to'xtab turish
+Mashq qilish kerak: Chorrahalar, Quvib o'tish
+```
+
+`Imtihonga tayyorlik` (readiness %) only appears once the readiness `ready_estimate` state is
+reached.
 
 ## Practice by topic (with explanations)
 
-The core learning loop.
-
-1. User picks a **topic** (or "mixed").
+1. Pick a **topic** (or "mixed").
 2. One question at a time: prompt + media (image / looping muted video / GIF) + 2–5 options.
-3. User selects an option and submits.
-4. **Immediate feedback**: correct/incorrect banner; the correct option highlighted;
-   **per-option explanation**; the **rule** behind the answer (`Rule.text_uz` via
-   `QuestionRule`) and the question's `short_explanation`.
-5. "Continue" loads the next question (a fresh `PracticeAnswer` — questions may recur across
-   sessions).
+3. Select an option and submit.
+4. **Immediate feedback** meeting the **explanation-quality standard**
+   ([06-content-plan.md](06-content-plan.md#explanation-quality-standard)): your answer vs.
+   correct; **why the correct option**; **why each wrong option is wrong**; the **rule**
+   (`Rule`/`RuleTranslation` via `QuestionVersionRule`); and a short "Eslab qoling".
+5. Continue → next question (a new `PracticeAnswer`; questions may recur across sessions).
 
-Requirements:
-- Media renders inline; video **autoplays muted, loops, `playsinline`**, with a poster
-  frame fallback and a manual replay control; respects reduced-motion.
-- Explanations appear **only after** the user answers.
-- Wrong answers create/update a `MistakeEntry`.
+Media autoplays muted, loops, `playsinline`, poster fallback, reduced-motion respected.
+Explanations appear **only after** answering. Wrong answers upsert a `MistakeEntry`.
 
 ## Mistakes review
 
-- A queue of the user's unresolved mistakes (`MistakeEntry.resolved = false`), ordered
-  hardest/most-recent first (`miss_count` desc, `last_missed_at` desc).
-- Same answer + explanation flow as practice (runs as a `PracticeSession` with
-  `source = mistakes`).
-- v1 resolves an entry on the first correct re-answer.
+Queue of unresolved mistakes (hardest/most-recent first), same explanation flow, run as a
+`PracticeSession` with `source = mistakes`. v1 resolves on first correct re-answer; correct
+resolution can award ranking points ([10-ranking.md](10-ranking.md)).
 
 ## Road-sign trainer (v1)
 
-A fast visual drill over sign questions, reusing the same question/rule infrastructure.
-
-- Pool: published questions with `is_sign_question = true` (topic `road_signs`).
-- Flow: **show sign → choose meaning → submit → immediate correction + explanation + rule →
-  next sign.**
-- Card-style, quick pace; wrong answers feed the same `MistakeEntry` queue.
-- No separate content pipeline — signs are ordinary `Question` records flagged for this mode.
-
-(The advanced **situation trainer** for intersections/manoeuvres remains v2.)
+Fast visual drill over `is_sign_question` questions: **show sign → choose meaning → submit →
+immediate correction + explanation + rule → next**. Reuses the same question/rule
+infrastructure; wrong answers feed the mistakes queue. (Advanced **situation trainer** is v2.)
 
 ## Mock exam simulation (maximum real-exam fidelity)
 
-Mirrors the official theory exam ([01-exam-and-rules.md](01-exam-and-rules.md)). There are
-**no mock templates** and **no separate exam bank** — questions come from the shared bank.
+No templates, no separate bank — questions come from the shared bank. Full UI/behavior in
+[12-ui-exam-mode.md](12-ui-exam-mode.md); integrity controls in
+[09-security.md](09-security.md#exam-integrity-critical).
 
 ### Start
+- Select **20 random, unique, published** questions for the user's category (B) + language
+  (uz), **without replacement**; **pin each question's current immutable `question_version_id`**
+  into `MockQuestion` so later edits never alter this attempt.
+- Set `started_at` + `expires_at = started_at + 1500s`; snapshot the exam config.
+- Uniform random selection — **no topic quota/blueprint**.
+- Copy says *our app* selects from *our* bank; it must not claim the official exam uses our
+  bank or a specific algorithm ([01-exam-and-rules.md](01-exam-and-rules.md)).
 
-- Our app selects **20 random, unique, published** questions for the user's category (B) and
-  language (`uz`), **without replacement**, and snapshots them as `MockQuestion` rows with
-  fixed positions.
-- Set `started_at` and `expires_at = started_at + 1500s`; snapshot the exam-config values
-  onto the `MockAttempt`.
-- **No topic quota / blueprint** — selection is uniform random from the eligible bank.
-- Copy must say *our app* selects from *our* bank; it must **not** claim the official exam
-  uses our bank or a specific algorithm (see [01-exam-and-rules.md](01-exam-and-rules.md)).
+### During
+- Enter a distinct **exam-focused mode** (no points/streaks/tips/gamification —
+  [12-ui-exam-mode.md](12-ui-exam-mode.md)).
+- 20 questions, 2–5 options, exactly one correct; media as in the real exam.
+- **Continuous global 25-minute timer**, server-authoritative via `expires_at`: closing the
+  app does not stop it; reopening computes remaining as `expires_at - now`; client can never
+  extend it; **no pause/resume**.
+- **No hints/explanations/correct-answer reveal**; the API does not even send correctness
+  ([09-security.md](09-security.md#exam-integrity-critical)).
+- Navigator with mark-for-review; answers autosave.
 
-### During the exam
+### Network loss
+Answers may be buffered locally and synced on reconnect; server `expires_at` stays
+authoritative; offline time still counts; a sync arriving after `expires_at` does not change
+final results.
 
-- 20 questions, **2–5 options**, exactly one correct; media shown like the real exam.
-- **Continuous global 25-minute timer.** The deadline is `expires_at`, computed and enforced
-  **server-side**:
-  - closing Telegram/the browser does **not** stop the timer;
-  - reopening computes remaining time as `expires_at - now` (never from client state);
-  - the client can **never** extend the deadline;
-  - **there is no pause/resume.**
-- **No hints, no explanations, no correct-answer reveal** during the exam.
-- Question navigator: jump between questions, **mark for review**, see answered/unanswered.
-
-### Network-loss behaviour
-
-- Answers may be **buffered locally** while offline.
-- On reconnect, the client **syncs pending answers** to the server.
-- The server's `expires_at` remains **authoritative**; **offline time still counts** against
-  the 25 minutes. A sync that arrives after `expires_at` does not change the outcome for
-  those questions.
-
-### Submission and result
-
-- On explicit submit **or** when `now >= expires_at`, the server grades: `correct_count`,
-  `answered_count`, `passed = correct_count >= pass_correct` (18).
-- Auto-submit at expiry happens server-side even if the client is gone; the next time the
-  attempt is loaded it is already `completed`.
-
-Result screen:
+### Submission & result
+On submit or when `now >= expires_at`, the server grades: `correct_count`, `answered_count`,
+`passed = correct_count >= 18`. Auto-submit happens server-side even if the client is gone.
 
 ```
 18 / 20 — O'TDINGIZ (PASS)      |      15 / 20 — YIQILDINGIZ (FAIL)
 Vaqt: 17:42
-
-Xatolar:
-- 7-savol · Chorrahalar
-- 14-savol · To'xtash va to'xtab turish
-
+Xatolar: 7-savol · Chorrahalar ; 14-savol · To'xtash va to'xtab turish
 O'rtacha javob vaqti: 53 s
 ```
 
-Post-exam **review**: full per-question review with the correct answer, per-option
-explanations, and the rule (now revealed). Missed questions feed the mistakes queue.
+Post-exam **review** renders from the **pinned `question_version_id`** (exactly what was
+taken) with correct answers, per-option explanations, and rules now revealed. Missed questions
+feed the mistakes queue.
 
 ## Progress / readiness dashboard
 
-Home screen (research §14), driven by [07-readiness.md](07-readiness.md):
-- **readiness** — a percentage **only when enough data exists**; otherwise
-  `Ma'lumot yetarli emas` ("not enough data") or an `Initial level: NN%` label;
-- recent mock result(s);
-- **weak topics** (lowest topic mastery);
-- today's daily-goal progress and streak;
-- primary actions: **Continue practice** and **Start mock exam (20 / 25 min)**.
+Home screen ([07-readiness.md](07-readiness.md)): readiness state (a % only at
+`ready_estimate`, else `Boshlang'ich daraja` or `Ma'lumot yetarli emas`, plus remaining topics
+for coverage); recent mock result(s); weak topics; daily-goal + streak; ranking snapshot; and
+primary actions **Continue practice** / **Start mock exam (20 / 25 min)**. The advisory "exam
+ready" badge requires the full gate incl. **curriculum coverage**.
 
-The advisory **"exam ready"** badge appears only when the readiness gate is met (≥3 recent
-mocks; ≥2 of last 3 at ≥18/20; no major topic below 70%; enough unique questions attempted).
-Thresholds are domain configuration.
+## Rankings (v1)
+
+Learning-weighted, server-computed points with weekly/monthly/all-time boards, own-position
+always shown, user-controlled display name, and opt-out — full model in
+[10-ranking.md](10-ranking.md).
+
+## Content reports
+
+From any question (practice or mock review), a user can report an issue: **wrong answer,
+unclear explanation, image problem, outdated rule, typo, other**. Reports capture the exact
+`question_version_id` and land in the admin report queue
+([08-admin.md](08-admin.md#content-reports-queue)).
 
 ## Admin studio
 
-Reuse SATStudy's admin question studio, adjusted for driving content. **Mock-template
-building is removed** (mocks are generated from the shared bank at start time).
+Full spec in [08-admin.md](08-admin.md): role-based dashboard, fast question editor with live
+practice/mock/mobile preview, searchable Rule picker, review lifecycle, bulk import/ops,
+duplicate detection, report queue, and pre-publish QA. **No mock-template building** (mocks are
+generated from the shared bank). Editing a published question creates a **new immutable
+version**.
 
-- create/edit/publish/archive questions; draft→reviewed→published lifecycle;
-- author text as **translations** (`uz` in v1): prompt, `short_explanation`, and each
-  option's text + explanation;
-- **media upload** (image / MP4 / WebM / GIF) → object storage; content-hash + poster
-  generation; alt text (see [05-architecture.md](05-architecture.md));
-- set **category**, **topic**, **subtopic**, **difficulty**, and `is_sign_question`;
-- edit **2–5 options**, mark the one correct;
-- link one or more **`Rule`** records (required to publish) + manage the `Rule` catalog;
-- publish validation enforces the rules in
-  [02-domain-model.md](02-domain-model.md#question-and-content-translation-ready);
-- admin overview + practice analytics (weak topics, most-missed) reused from SATStudy;
-- when a `Rule` changes, the studio can list all questions linked to it for re-review;
-- all admin actions gated by `ADMIN_TELEGRAM_IDS`; dev login gated to
-  `APP_ENV=development` (see [05-architecture.md](05-architecture.md#security)).
+## Deferred to v2
 
-## Deferred to v2 (not built now)
-
-Leaderboards; situation trainer; spaced-repetition; exam-day checklist; Russian + Cyrillic;
-additional categories (A/A1/C/D); Telegram retention/reminder messages.
+Situation trainer; spaced-repetition; exam-day checklist; Russian + Cyrillic; additional
+categories (A/A1/C/D); Telegram reminder messages; region/city ranking.
