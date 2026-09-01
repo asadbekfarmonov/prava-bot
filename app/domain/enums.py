@@ -1,0 +1,86 @@
+from enum import StrEnum
+
+
+class Category(StrEnum):
+    """Driving-licence category. v1 ships B only; the rest are reserved."""
+
+    B = "B"
+    A = "A"
+    A1 = "A1"
+    C = "C"
+    D = "D"
+
+
+class Topic(StrEnum):
+    """The 15 YHQ learning topics (docs/spec/06-content-plan.md).
+
+    Used for learning organisation and readiness coverage only — NOT a claimed
+    exam blueprint.
+    """
+
+    GENERAL_RULES = "general_rules"
+    ROAD_SIGNS = "road_signs"
+    ROAD_MARKINGS = "road_markings"
+    SIGNALS = "signals"
+    INTERSECTIONS = "intersections"
+    MANOEUVRING = "manoeuvring"
+    SPEED_DISTANCE = "speed_distance"
+    OVERTAKING = "overtaking"
+    STOPPING_PARKING = "stopping_parking"
+    VULNERABLE_USERS = "vulnerable_users"
+    RAILWAY_CROSSINGS = "railway_crossings"
+    MOTORWAYS_SPECIAL = "motorways_special"
+    VEHICLE_CONDITION = "vehicle_condition"
+    TRANSPORT_OF_PEOPLE_CARGO = "transport_of_people_cargo"
+    EMERGENCIES_FIRST_AID = "emergencies_first_aid"
+
+
+class Language(StrEnum):
+    """Content/UI language. v1 writes only ``uz``; ``ru`` reserved for v2."""
+
+    UZ = "uz"
+    RU = "ru"
+
+
+class MediaType(StrEnum):
+    IMAGE = "image"
+    VIDEO = "video"
+    GIF = "gif"
+
+
+class VersionStatus(StrEnum):
+    DRAFT = "draft"
+    NEEDS_REVIEW = "needs_review"
+    REVIEWED = "reviewed"
+    PUBLISHED = "published"
+    NEEDS_REVERIFICATION = "needs_reverification"
+    SUPERSEDED = "superseded"
+    ARCHIVED = "archived"
+
+
+class AdminRole(StrEnum):
+    CONTENT_AUTHOR = "content_author"
+    CONTENT_REVIEWER = "content_reviewer"
+    ADMIN = "admin"
+    SUPERADMIN = "superadmin"
+
+
+class RuleStatus(StrEnum):
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+    REPEALED = "repealed"
+
+
+class PracticeSource(StrEnum):
+    TOPIC = "topic"
+    MIXED = "mixed"
+    MISTAKES = "mistakes"
+    SIGN_TRAINER = "sign_trainer"
+    DIAGNOSTIC = "diagnostic"
+
+
+class SourceKind(StrEnum):
+    REFERENCE = "reference"
+    DIAGRAM_SOURCE = "diagram_source"
+    MEDIA_SOURCE = "media_source"
+    OTHER = "other"
