@@ -108,9 +108,11 @@ The v1 trainer draws from ordinary questions where `topic = road_signs` and
 
 ## Content governance
 
-- **Original questions** for v1 unless licensed content is obtained
-  ([11-content-acquisition.md](11-content-acquisition.md)). Do not import third-party/official
-  banks until reuse rights and the technical source are confirmed.
+- **Original / demo questions** for the v1 build so development is not blocked; the content
+  source is **replaceable** via the ingestion adapter, and a licensed bank (if obtained) feeds
+  the same path ([11-content-acquisition.md](11-content-acquisition.md#build-decision-content-source-is-replaceable-locked)).
+  Do not import third-party/official banks until reuse rights and the technical source are
+  confirmed.
 - Never label internally authored content an **"official exam question."**
 - **First-aid** content from current Uzbekistan rules + recognised first-aid guidance only.
 - Keep version `verified_at`/`content_version` so rule changes can trigger re-review.

@@ -9,6 +9,44 @@ principle**, and a fully-specified **original-content fallback**.
 > checked by a human before any acquisition decision. Do not treat any third-party bank as
 > reusable just because it is visible online.
 
+## Build decision: content source is replaceable (locked)
+
+The app is built **content-source-agnostic**. v1 ships with **original / demo questions**
+authored in the admin studio so development is never blocked, while licensing outreach runs in
+parallel. The choice of source — original, demo, or a licensed bank — must **not** change the
+application architecture; it only changes which rows populate the shared question bank.
+
+### Content ingestion abstraction
+
+All content enters through **one** validated path into `Question` + immutable
+`QuestionVersion` ([02-domain-model.md](02-domain-model.md)):
+
+```
+ContentSource (adapter)
+  ├── manual admin authoring        (v1 default)
+  ├── CSV/JSON import               (08-admin.md)
+  └── licensed-bank importer        (added only if/when a licence is signed)
+        → maps external fields → QuestionVersion + translations + options + rule links + media
+        → runs the SAME publish validation (2–5 options, exactly one correct,
+          rule provenance, explanation per option, human verification)
+        → lands as DRAFT; never auto-publishes
+```
+
+Because every source funnels through the same model, publish validation, and media pipeline,
+swapping or adding a source is an **import-adapter + data** change, not an architecture change.
+Provenance is recorded via `QuestionVersionSource` (and `ai_assisted` for LLM-drafted demo
+content). This mirrors the storage adapter pattern (`MediaStorage`) — infrastructure choices
+stay behind a port.
+
+## Parallel licensing track (non-blocking)
+
+Licensing is a **business/legal track that runs alongside development** and does **not** gate
+the build. For each candidate provider (§2) collect: #questions, media coverage, languages,
+official-claim status, explanations present?, licence terms (store / display / modify /
+translate / commercial / duration / updates / ownership / redistribution), price model, and
+contact/route. A signed licence later becomes a **licensed-bank importer** feeding the same
+ingestion path above — with no change to the app's architecture.
+
 ## Guiding legal principle
 
 **Visible online ≠ reusable.** We do not scrape or copy any third-party/official question
