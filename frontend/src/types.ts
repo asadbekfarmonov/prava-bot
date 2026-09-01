@@ -121,3 +121,102 @@ export interface MockReviewItem {
 export interface MockReview extends MockAttemptState {
   items: MockReviewItem[];
 }
+
+// ---- Admin studio ----
+export interface AdminOverview {
+  counts: Record<string, number>;
+  topic_coverage: Record<string, number>;
+  questions_without_media_where_likely_needed: string[];
+  open_reports: number;
+  media_storage: { object_count: number; total_bytes: number };
+}
+
+export interface AdminQuestionListItem {
+  id: string;
+  topic: string;
+  category: string;
+  is_sign_question: boolean;
+  lifecycle_status: string;
+  current_version_id: string | null;
+  working_version_id: string | null;
+  prompt: string;
+  has_media: boolean;
+}
+
+export interface AdminRuleOut {
+  id: string;
+  code: string;
+  title: string | null;
+  text: string;
+  version: number;
+  source_url: string;
+  status: string;
+}
+
+export interface AdminOptionInput {
+  text: string;
+  explanation: string;
+  is_correct: boolean;
+}
+
+export interface AdminQuestionInput {
+  category: "B";
+  topic: string;
+  prompt: string;
+  short_explanation: string;
+  difficulty: number;
+  is_sign_question: boolean;
+  rule_codes: string[];
+  media_id: string | null;
+  options: AdminOptionInput[];
+}
+
+export interface AdminVersionOut {
+  id: string;
+  question_id: string;
+  version: number;
+  status: string;
+  media_id: string | null;
+}
+
+export interface QaCheck {
+  key: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface QaPayload {
+  question: Record<string, unknown>;
+  version: Record<string, unknown>;
+  checklist: QaCheck[];
+  all_passed: boolean;
+  open_reports: number;
+  practice_preview: {
+    prompt: string;
+    short_explanation: string;
+    correct_option_id: string | null;
+    options: Array<{ id: string; position: number; text: string; is_correct: boolean; explanation: string }>;
+    rules: Array<{ code: string; text: string; superseded: boolean }>;
+  };
+  exam_preview: {
+    prompt: string;
+    options: Array<{ id: string; position: number; text: string }>;
+  };
+}
+
+export interface AdminReport {
+  id: string;
+  question_version_id: string;
+  reason: string;
+  note: string | null;
+  status: string;
+  created_at: string | null;
+}
+
+export interface MediaOut {
+  id: string;
+  content_hash: string;
+  content_type: string;
+  media_type: string;
+  url: string;
+}

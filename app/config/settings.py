@@ -46,6 +46,19 @@ class Settings(BaseSettings):
     media_region: str = Field(default="", alias="REGION")
     media_endpoint: str = Field(default="", alias="ENDPOINT")
     media_public_base_url: str = Field(default="", alias="MEDIA_PUBLIC_BASE_URL")
+    media_presign_ttl_seconds: int = Field(default=300, alias="MEDIA_PRESIGN_TTL_SECONDS")
+
+    # Media upload hardening caps (docs/spec/09 media-upload-security).
+    max_image_bytes: int = Field(default=5 * 1024 * 1024, alias="MAX_IMAGE_BYTES")
+    max_video_bytes: int = Field(default=25 * 1024 * 1024, alias="MAX_VIDEO_BYTES")
+    max_video_duration_ms: int = Field(default=60_000, alias="MAX_VIDEO_DURATION_MS")
+    max_image_pixels: int = Field(default=25_000_000, alias="MAX_IMAGE_PIXELS")
+    max_image_dimension: int = Field(default=5_000, alias="MAX_IMAGE_DIMENSION")
+    max_gif_frames: int = Field(default=300, alias="MAX_GIF_FRAMES")
+
+    # Admin bootstrap + separation-of-duties (docs/spec/08).
+    superadmin_telegram_ids: str = Field(default="", alias="SUPERADMIN_TELEGRAM_IDS")
+    require_second_reviewer: bool = Field(default=False, alias="REQUIRE_SECOND_REVIEWER")
 
     auth_rate_limit_per_minute: int = Field(default=30, alias="AUTH_RATE_LIMIT_PER_MINUTE")
     write_rate_limit_per_minute: int = Field(default=180, alias="WRITE_RATE_LIMIT_PER_MINUTE")
@@ -90,6 +103,21 @@ class Settings(BaseSettings):
             if value:
                 ids.add(int(value))
         return ids
+
+    @property
+    def superadmin_ids(self) -> set[int]:
+        ids: set[int] = set()
+        for part in self.superadmin_telegram_ids.split(","):
+            value = part.strip()
+            if value:
+                ids.add(int(value))
+        return ids
+
+    @property
+    def media_storage_configured(self) -> bool:
+        """True when an S3-compatible bucket is configured; otherwise the in-memory
+        fake is used (dev/test never hit the network)."""
+        return bool(self.media_bucket and self.media_endpoint)
 
     @property
     def frontend_dist_path(self) -> Path:

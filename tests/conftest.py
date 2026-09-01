@@ -12,7 +12,8 @@ def client(tmp_path) -> Generator[TestClient, None, None]:
     os.environ["DATABASE_URL"] = f"sqlite:///{tmp_path / 'test.db'}"
     os.environ["APP_ENV"] = "development"
     os.environ["DEV_AUTH_ENABLED"] = "true"
-    os.environ["ADMIN_TELEGRAM_IDS"] = "9001"
+    os.environ["ADMIN_TELEGRAM_IDS"] = "9001,9002,9003,9004,9010"
+    os.environ["SUPERADMIN_TELEGRAM_IDS"] = "9010"
     os.environ["SESSION_SECRET"] = "test-secret"
     os.environ["BOT_TOKEN"] = BOT_TOKEN
     os.environ["TELEGRAM_INIT_DATA_MAX_AGE_SECONDS"] = "3600"
@@ -27,10 +28,14 @@ def client(tmp_path) -> Generator[TestClient, None, None]:
 
     get_settings.cache_clear()
     reset_engine_state()
+    from app.storage.media_storage import set_media_storage
+
+    set_media_storage(None)
     Base.metadata.create_all(bind=get_engine())
     with TestClient(create_app()) as test_client:
         yield test_client
     reset_engine_state()
+    set_media_storage(None)
     get_settings.cache_clear()
 
 

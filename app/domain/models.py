@@ -28,6 +28,8 @@ from app.domain.enums import (
     MediaType,
     MockStatus,
     PracticeSource,
+    ReportReason,
+    ReportStatus,
     RuleStatus,
     SourceKind,
     Topic,
@@ -495,3 +497,52 @@ class MockAnswer(TimestampMixin, Base):
 
     mock_attempt: Mapped[MockAttempt] = relationship(back_populates="answers")
     question_version: Mapped[QuestionVersion] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Content reports (user-filed; feed the admin queue)
+# --------------------------------------------------------------------------- #
+class ContentReport(TimestampMixin, Base):
+    __tablename__ = "content_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    # The EXACT version the reporter saw (never the mutable container).
+    question_version_id: Mapped[str] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=False, index=True
+    )
+    reason: Mapped[ReportReason] = mapped_column(
+        Enum(ReportReason, native_enum=False, length=32), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[ReportStatus] = mapped_column(
+        Enum(ReportStatus, native_enum=False, length=16),
+        default=ReportStatus.OPEN,
+        nullable=False,
+        index=True,
+    )
+    resolved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    question_version: Mapped[QuestionVersion] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Admin audit trail (every create/edit/review/publish/supersede/archive/import/
+# report-resolve is recorded — docs/spec/08 + 09)
+# --------------------------------------------------------------------------- #
+class AdminAuditEvent(TimestampMixin, Base):
+    __tablename__ = "admin_audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    version: Mapped[int | None] = mapped_column(Integer)
+    # Human/machine-readable extra context (never PII payloads).
+    detail: Mapped[dict | None] = mapped_column(JSON)
+    warning: Mapped[str | None] = mapped_column(Text)
+
+    actor: Mapped[User | None] = relationship(foreign_keys=[actor_user_id])

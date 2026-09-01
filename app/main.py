@@ -97,6 +97,11 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router)
+    from app.api.admin_routes import router as admin_router
+    from app.api.media_routes import router as media_router
+
+    app.include_router(admin_router)
+    app.include_router(media_router)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):

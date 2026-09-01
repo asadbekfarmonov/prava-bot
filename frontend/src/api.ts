@@ -88,3 +88,54 @@ export const api = {
     request<MockAttemptState>(`/api/mock/attempts/${id}/submit`, { method: "POST", body: JSON.stringify({}) }),
   reviewMock: (id: string) => request<MockReview>(`/api/mock/attempts/${id}/review`)
 };
+
+export const adminApi = {
+  overview: () => request<import("./types").AdminOverview>("/api/admin/overview"),
+  listQuestions: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<{ total: number; items: import("./types").AdminQuestionListItem[] }>(
+      `/api/admin/questions${qs ? `?${qs}` : ""}`
+    );
+  },
+  createQuestion: (payload: import("./types").AdminQuestionInput) =>
+    request<import("./types").AdminVersionOut>("/api/admin/questions", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  editQuestion: (id: string, payload: import("./types").AdminQuestionInput) =>
+    request<import("./types").AdminVersionOut>(`/api/admin/questions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  submitReview: (vid: string) =>
+    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  review: (vid: string) =>
+    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/review`, { method: "POST", body: "{}" }),
+  publish: (vid: string) =>
+    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/publish`, { method: "POST", body: "{}" }),
+  qa: (qid: string) => request<import("./types").QaPayload>(`/api/admin/questions/${qid}/qa`),
+  searchRules: (q: string) =>
+    request<{ rules: import("./types").AdminRuleOut[] }>(`/api/admin/rules${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  reports: (status?: string) =>
+    request<{ reports: import("./types").AdminReport[] }>(`/api/admin/reports${status ? `?status=${status}` : ""}`),
+  resolveReport: (id: string, action: "resolve" | "reject" | "triage") =>
+    request<{ id: string; status: string }>(`/api/admin/reports/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ action })
+    }),
+  uploadMedia: async (file: File): Promise<import("./types").MediaOut> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/admin/media", { method: "POST", credentials: "include", body: form });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = (await res.json()).detail || detail;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail);
+    }
+    return (await res.json()) as import("./types").MediaOut;
+  }
+};

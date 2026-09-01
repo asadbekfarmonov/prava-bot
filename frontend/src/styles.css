@@ -40,3 +40,28 @@ button.marked { background: #c98a12; color: #fff; }
 .result-score .pass { color: #1a9e5c; }
 .result-score .fail { color: #d64545; }
 .review-item { border-top: 1px solid #24405f; padding-top: 12px; margin-top: 12px; }
+
+/* ---- Admin studio ---- */
+.admin-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.admin-nav button.active { font-weight: 700; }
+.admin-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-stat { border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; min-width: 90px; }
+.admin-stat-value { font-size: 1.4rem; font-weight: 700; }
+.editor-layout { display: flex; gap: 16px; flex-wrap: wrap; }
+.editor-form { flex: 1 1 320px; }
+.editor-preview { flex: 1 1 260px; }
+.editor-form textarea, .editor-form input, .editor-form select { width: 100%; margin-bottom: 6px; }
+.opt-edit { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+.rule-picker { margin: 10px 0; }
+.rule-results { display: flex; flex-wrap: wrap; gap: 4px; }
+.rule-chip { font-size: 0.8rem; }
+.rule-chip.picked { outline: 2px solid #2b7; }
+.rule-chip.superseded { color: #b00; }
+.preview { border: 1px dashed #bbb; border-radius: 8px; padding: 10px; }
+.preview-mobile { max-width: 320px; }
+.preview-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.preview-tabs button.active { font-weight: 700; }
+.checklist { list-style: none; padding-left: 0; }
+.checklist li.pass { color: #2a7; }
+.checklist li.fail { color: #c22; }
+.review-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

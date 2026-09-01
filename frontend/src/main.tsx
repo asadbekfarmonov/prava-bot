@@ -4,6 +4,7 @@ import "./styles.css";
 import { api } from "./api";
 import { getTelegramInitData, readyTelegram } from "./telegram";
 import { t } from "./i18n/uz";
+import { AdminArea } from "./admin";
 import type {
   AnswerResult,
   MockAttemptState,
@@ -469,9 +470,9 @@ function ExamMode({ onExit }: { onExit: () => void }) {
   );
 }
 
-type Screen = "home" | "practice" | "mock";
+type Screen = "home" | "practice" | "mock" | "admin";
 
-function Home({ onPick }: { onPick: (s: Screen) => void }) {
+function Home({ onPick, user }: { onPick: (s: Screen) => void; user: UserOut }) {
   return (
     <div className="card">
       <h1>{t("appTitle")}</h1>
@@ -479,6 +480,12 @@ function Home({ onPick }: { onPick: (s: Screen) => void }) {
       <button onClick={() => onPick("practice")}>{t("practiceMode")}</button>
       <div style={{ height: 8 }} />
       <button onClick={() => onPick("mock")}>{t("startMock")}</button>
+      {user.admin_role && (
+        <>
+          <div style={{ height: 8 }} />
+          <button className="secondary" onClick={() => onPick("admin")}>Admin studiya</button>
+        </>
+      )}
     </div>
   );
 }
@@ -500,7 +507,8 @@ function App() {
   if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
   if (screen === "practice") return <Practice onExit={() => setScreen("home")} />;
   if (screen === "mock") return <ExamMode onExit={() => setScreen("home")} />;
-  return <Home onPick={setScreen} />;
+  if (screen === "admin") return <AdminArea role={user.admin_role} onExit={() => setScreen("home")} />;
+  return <Home onPick={setScreen} user={user} />;
 }
 
 createRoot(document.getElementById("root")!).render(

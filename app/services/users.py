@@ -28,6 +28,18 @@ def upsert_telegram_user(db: Session, payload: dict[str, Any]) -> User:
     user.last_name = payload.get("last_name")
     user.photo_url = payload.get("photo_url")
     user.last_seen_at = datetime.now(timezone.utc)
+    # Env-seed the bootstrap superadmin(s). This is the ONLY place a role is assigned
+    # without an existing superadmin acting; all other assignments go through the
+    # audited superadmin role-assignment endpoint. Never assigned from client input.
+    from app.domain.enums import AdminRole
+
+    settings = get_settings()
+    try:
+        tid_int = int(telegram_id)
+    except (TypeError, ValueError):
+        tid_int = None
+    if tid_int is not None and tid_int in settings.superadmin_ids and user.admin_role is None:
+        user.admin_role = AdminRole.SUPERADMIN
     db.commit()
     db.refresh(user)
     return user

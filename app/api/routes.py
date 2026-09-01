@@ -9,6 +9,7 @@ from app.api.schemas import (
     PracticeAnswerIn,
     PracticeSessionIn,
     ProfileIn,
+    ReportIn,
     TelegramLoginRequest,
 )
 from app.api.telegram_auth import TelegramAuthError, validate_init_data
@@ -238,3 +239,20 @@ def submit_mock(attempt_id: str, user: CompletedOnboardingUser, db: DbSession) -
 @router.get("/mock/attempts/{attempt_id}/review")
 def review_mock(attempt_id: str, user: CompletedOnboardingUser, db: DbSession) -> dict:
     return mock.review(db, user, attempt_id)
+
+
+# --------------------------------------------------------------------------- #
+# Content reports (user-filed) — docs/spec/02, 08
+# --------------------------------------------------------------------------- #
+@router.post("/reports", status_code=status.HTTP_201_CREATED)
+def create_report(payload: ReportIn, user: CurrentUser, db: DbSession) -> dict:
+    from app.services import reports as reports_service
+
+    report = reports_service.create_report(
+        db,
+        user,
+        question_version_id=payload.question_version_id,
+        reason=payload.reason,
+        note=payload.note,
+    )
+    return {"id": report.id, "status": report.status.value}

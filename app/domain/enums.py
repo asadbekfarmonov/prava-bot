@@ -90,3 +90,35 @@ class SourceKind(StrEnum):
     DIAGRAM_SOURCE = "diagram_source"
     MEDIA_SOURCE = "media_source"
     OTHER = "other"
+
+
+class ReportReason(StrEnum):
+    WRONG_ANSWER = "wrong_answer"
+    UNCLEAR_EXPLANATION = "unclear_explanation"
+    IMAGE_PROBLEM = "image_problem"
+    OUTDATED_RULE = "outdated_rule"
+    TYPO = "typo"
+    OTHER = "other"
+
+
+class ReportStatus(StrEnum):
+    OPEN = "open"
+    TRIAGED = "triaged"
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+# Admin role capability ordering (low -> high). Used by require_role(min_role).
+ADMIN_ROLE_ORDER: dict[AdminRole, int] = {
+    AdminRole.CONTENT_AUTHOR: 1,
+    AdminRole.CONTENT_REVIEWER: 2,
+    AdminRole.ADMIN: 3,
+    AdminRole.SUPERADMIN: 4,
+}
+
+
+def role_rank(role: "AdminRole | None") -> int:
+    """Numeric capability rank; ``None`` (ordinary student) is 0."""
+    if role is None:
+        return 0
+    return ADMIN_ROLE_ORDER.get(role, 0)

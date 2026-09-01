@@ -59,3 +59,15 @@ class MockAnswerIn(BaseModel):
     question_version_id: str
     selected_option_id: str | None = None
     marked_for_review: bool = False
+
+
+class ReportIn(BaseModel):
+    """User content report. Strict: reason is constrained; ids not owned are ignored."""
+
+    model_config = {"extra": "ignore"}
+
+    question_version_id: str
+    reason: Literal[
+        "wrong_answer", "unclear_explanation", "image_problem", "outdated_rule", "typo", "other"
+    ]
+    note: str | None = Field(default=None, max_length=2000)
