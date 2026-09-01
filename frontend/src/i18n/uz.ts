@@ -20,7 +20,29 @@ export const uz = {
   rememberThis: "Eslab qoling",
   noQuestions: "Bu mavzuda savol topilmadi",
   errorGeneric: "Xatolik yuz berdi",
-  topicAll: "Aralash (barcha mavzular)"
+  topicAll: "Aralash (barcha mavzular)",
+  home: "Bosh sahifa",
+  practiceMode: "Mashq",
+  mockMode: "Imtihon (mock)",
+  startMock: "Imtihonni boshlash (20 savol / 25 daqiqa)",
+  examModeIntro: "Imtihon rejimi boshlanadi — 20 savol, 25 daqiqa. Maslahat, izoh yoki to'g'ri javob ko'rsatilmaydi.",
+  examBegin: "Boshlash",
+  question: "Savol",
+  markForReview: "Belgilab qo'yish",
+  marked: "Belgilangan",
+  finish: "Yakunlash",
+  submitExam: "Imtihonni topshirish",
+  timeUp: "Vaqt tugadi",
+  passed: "O'TDINGIZ",
+  failed: "YIQILDINGIZ",
+  yourResult: "Natijangiz",
+  missedQuestions: "Xato savollar",
+  avgAnswerTime: "O'rtacha javob vaqti",
+  reviewAnswers: "Javoblarni ko'rib chiqish",
+  backHome: "Bosh sahifaga qaytish",
+  correctAnswerLabel: "To'g'ri javob",
+  prev: "Oldingi",
+  examInProgressResume: "Imtihon davom etmoqda"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

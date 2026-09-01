@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from app.api.deps import CompletedOnboardingUser, CurrentUser, DbSession
 from app.api.schemas import (
     DevLoginRequest,
+    MockAnswerIn,
     PracticeAnswerIn,
     PracticeSessionIn,
     ProfileIn,
@@ -15,7 +16,7 @@ from app.config import get_settings
 from app.domain.enums import Category, Language, Topic
 from app.domain.models import StudentProfile
 from app.observability.logging import log_event
-from app.services import practice
+from app.services import mock, practice
 from app.services.users import upsert_telegram_user, user_out
 
 router = APIRouter(prefix="/api")
@@ -185,3 +186,55 @@ def submit_practice_answer(
         selected_option_id=payload.selected_option_id,
         time_spent_seconds=payload.time_spent_seconds,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Mock exam (onboarding-gated) — docs/spec/03, 05, 09, 12
+# --------------------------------------------------------------------------- #
+@router.post("/mock/attempts")
+def start_mock(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    category = user.profile.category
+    language = user.profile.language
+    attempt = mock.start_attempt(db, user, category=category, language=language)
+    return mock.attempt_state(db, attempt)
+
+
+@router.get("/mock/attempts/current")
+def current_mock(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    state = mock.get_current(db, user)
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Imtihon topilmadi"
+        )
+    return state
+
+
+@router.get("/mock/attempts/{attempt_id}")
+def get_mock(attempt_id: str, user: CompletedOnboardingUser, db: DbSession) -> dict:
+    attempt = mock.get_owned_attempt(db, user, attempt_id)
+    attempt = mock.finalize_if_expired(db, attempt)
+    return mock.attempt_state(db, attempt)
+
+
+@router.post("/mock/attempts/{attempt_id}/answers")
+def save_mock_answer(
+    attempt_id: str, payload: MockAnswerIn, user: CompletedOnboardingUser, db: DbSession
+) -> dict:
+    return mock.save_answer(
+        db,
+        user,
+        attempt_id=attempt_id,
+        question_version_id=payload.question_version_id,
+        selected_option_id=payload.selected_option_id,
+        marked_for_review=payload.marked_for_review,
+    )
+
+
+@router.post("/mock/attempts/{attempt_id}/submit")
+def submit_mock(attempt_id: str, user: CompletedOnboardingUser, db: DbSession) -> dict:
+    return mock.submit_attempt(db, user, attempt_id)
+
+
+@router.get("/mock/attempts/{attempt_id}/review")
+def review_mock(attempt_id: str, user: CompletedOnboardingUser, db: DbSession) -> dict:
+    return mock.review(db, user, attempt_id)

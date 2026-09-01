@@ -48,3 +48,14 @@ class PracticeAnswerIn(BaseModel):
     question_id: str
     selected_option_id: str | None = None
     time_spent_seconds: int | None = Field(default=None, ge=0)
+
+
+class MockAnswerIn(BaseModel):
+    """Autosave one mock answer. Strict: client-supplied is_correct/correct_count/
+    passed (mass-assignment) are ignored; grading is server-side only."""
+
+    model_config = {"extra": "ignore"}
+
+    question_version_id: str
+    selected_option_id: str | None = None
+    marked_for_review: bool = False

@@ -65,6 +65,12 @@ class AdminRole(StrEnum):
     SUPERADMIN = "superadmin"
 
 
+class MockStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+
+
 class RuleStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"

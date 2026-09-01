@@ -16,3 +16,27 @@ input { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #d0
 .rule { border-left: 3px solid #2f6fed; padding-left: 10px; margin-top: 10px; }
 .muted { color: #7a8794; font-size: 13px; }
 select { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #d0d7e2; width: 100%; margin-bottom: 12px; }
+
+/* Exam mode: visually distinct, plain, terminal-like (docs/spec/12). */
+.card.exam { background: #10233b; color: #eaf1fb; box-shadow: none; border: 1px solid #24405f; }
+.card.exam h1 { font-size: 18px; }
+.card.exam .option { background: #16304f; color: #eaf1fb; border-color: #2f5680; }
+.card.exam .option.selected { border-color: #5aa2ff; background: #1d3f68; }
+.card.exam .option.correct { border-color: #1a9e5c; background: #123a2a; }
+.card.exam .option.wrong { border-color: #d64545; background: #3a1414; }
+.card.exam .muted, .card.exam .explain { color: #9fb4cd; }
+.exam-bar { display: flex; justify-content: space-between; align-items: center; font-variant-numeric: tabular-nums; padding-bottom: 8px; border-bottom: 1px solid #24405f; margin-bottom: 10px; }
+.exam-timer { font-size: 20px; font-weight: 700; }
+.exam-media { padding: 24px; text-align: center; border: 1px dashed #2f5680; border-radius: 8px; margin: 8px 0; }
+.exam-prompt { font-size: 16px; }
+.navigator { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.nav-cell { width: 34px; height: 34px; padding: 0; border-radius: 8px; background: #16304f; color: #eaf1fb; border: 1px solid #2f5680; }
+.nav-cell.answered { background: #1a9e5c; border-color: #1a9e5c; }
+.nav-cell.marked { background: #c98a12; border-color: #c98a12; }
+.nav-cell.current { outline: 2px solid #5aa2ff; }
+.exam-actions { display: flex; gap: 8px; }
+button.marked { background: #c98a12; color: #fff; }
+.result-score { font-size: 22px; }
+.result-score .pass { color: #1a9e5c; }
+.result-score .fail { color: #d64545; }
+.review-item { border-top: 1px solid #24405f; padding-top: 12px; margin-top: 12px; }

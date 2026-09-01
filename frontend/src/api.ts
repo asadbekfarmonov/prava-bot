@@ -1,4 +1,11 @@
-import type { AnswerResult, NextQuestion, ProfileOut, UserOut } from "./types";
+import type {
+  AnswerResult,
+  MockAttemptState,
+  MockReview,
+  NextQuestion,
+  ProfileOut,
+  UserOut
+} from "./types";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -55,4 +62,29 @@ export const api = {
         selected_option_id: optionId
       })
     })
+  ,
+  startMock: () =>
+    request<MockAttemptState>("/api/mock/attempts", { method: "POST", body: JSON.stringify({}) }),
+  currentMock: () => request<MockAttemptState>("/api/mock/attempts/current"),
+  getMock: (id: string) => request<MockAttemptState>(`/api/mock/attempts/${id}`),
+  saveMockAnswer: (
+    id: string,
+    questionVersionId: string,
+    selectedOptionId: string | null,
+    markedForReview: boolean
+  ) =>
+    request<{ saved: boolean; remaining_seconds: number }>(
+      `/api/mock/attempts/${id}/answers`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          question_version_id: questionVersionId,
+          selected_option_id: selectedOptionId,
+          marked_for_review: markedForReview
+        })
+      }
+    ),
+  submitMock: (id: string) =>
+    request<MockAttemptState>(`/api/mock/attempts/${id}/submit`, { method: "POST", body: JSON.stringify({}) }),
+  reviewMock: (id: string) => request<MockReview>(`/api/mock/attempts/${id}/review`)
 };

@@ -4,16 +4,19 @@ from datetime import date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +26,7 @@ from app.domain.enums import (
     Category,
     Language,
     MediaType,
+    MockStatus,
     PracticeSource,
     RuleStatus,
     SourceKind,
@@ -385,4 +389,109 @@ class PracticeAnswer(TimestampMixin, Base):
     )
 
     practice_session: Mapped[PracticeSession] = relationship(back_populates="answers")
+    question_version: Mapped[QuestionVersion] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Mock exam (self-contained, version-pinned snapshot)
+# --------------------------------------------------------------------------- #
+class MockAttempt(TimestampMixin, Base):
+    __tablename__ = "mock_attempts"
+
+    # Atomic guarantee of at most one in-progress attempt per user (DB-enforced,
+    # complementing the application check which alone is racy). Status persists by
+    # member NAME (native_enum=False), so the predicate matches 'IN_PROGRESS'.
+    __table_args__ = (
+        Index(
+            "uq_mock_one_in_progress_per_user",
+            "user_id",
+            unique=True,
+            sqlite_where=text("status = 'IN_PROGRESS'"),
+            postgresql_where=text("status = 'IN_PROGRESS'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    category: Mapped[Category] = mapped_column(
+        Enum(Category, native_enum=False, length=8), default=Category.B, nullable=False
+    )
+    # Snapshot of the user's language at start (v1: uz).
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), default=Language.UZ, nullable=False
+    )
+    status: Mapped[MockStatus] = mapped_column(
+        Enum(MockStatus, native_enum=False, length=16),
+        default=MockStatus.IN_PROGRESS,
+        nullable=False,
+        index=True,
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    # = started_at + time_limit_seconds; the SINGLE server-authoritative deadline.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Snapshot of the single exam config at start (docs/spec/01, 05).
+    exam_config_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    time_limit_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    pass_correct: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Graded server-side at submit/expiry.
+    correct_count: Mapped[int | None] = mapped_column(Integer)
+    answered_count: Mapped[int | None] = mapped_column(Integer)
+    passed: Mapped[bool | None] = mapped_column(Boolean)
+    # per-topic breakdown, missed list, avg answer time.
+    result_json: Mapped[dict | None] = mapped_column(JSON)
+
+    user: Mapped[User] = relationship()
+    questions: Mapped[list["MockQuestion"]] = relationship(
+        back_populates="mock_attempt", cascade="all, delete-orphan"
+    )
+    answers: Mapped[list["MockAnswer"]] = relationship(
+        back_populates="mock_attempt", cascade="all, delete-orphan"
+    )
+
+
+class MockQuestion(TimestampMixin, Base):
+    __tablename__ = "mock_questions"
+    __table_args__ = (
+        UniqueConstraint("mock_attempt_id", "question_version_id", name="uq_mock_question_version"),
+        UniqueConstraint("mock_attempt_id", "position", name="uq_mock_question_position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    mock_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("mock_attempts.id"), nullable=False, index=True
+    )
+    # PINNED to the immutable version at start; never a live question.
+    question_version_id: Mapped[str] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    mock_attempt: Mapped[MockAttempt] = relationship(back_populates="questions")
+    question_version: Mapped[QuestionVersion] = relationship()
+
+
+class MockAnswer(TimestampMixin, Base):
+    __tablename__ = "mock_answers"
+    __table_args__ = (
+        UniqueConstraint("mock_attempt_id", "question_version_id", name="uq_mock_answer_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    mock_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("mock_attempts.id"), nullable=False, index=True
+    )
+    question_version_id: Mapped[str] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=False, index=True
+    )
+    selected_option_id: Mapped[str | None] = mapped_column(ForeignKey("answer_options.id"))
+    # Graded server-side at submit; never trusted from the client.
+    is_correct: Mapped[bool | None] = mapped_column(Boolean)
+    marked_for_review: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    mock_attempt: Mapped[MockAttempt] = relationship(back_populates="answers")
     question_version: Mapped[QuestionVersion] = relationship()
