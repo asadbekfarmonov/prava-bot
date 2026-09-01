@@ -27,7 +27,9 @@ from app.domain.enums import (
     Language,
     MediaType,
     MockStatus,
+    PointsSource,
     PracticeSource,
+    ReadinessState,
     ReportReason,
     ReportStatus,
     RuleStatus,
@@ -546,3 +548,118 @@ class AdminAuditEvent(TimestampMixin, Base):
     warning: Mapped[str | None] = mapped_column(Text)
 
     actor: Mapped[User | None] = relationship(foreign_keys=[actor_user_id])
+
+
+# --------------------------------------------------------------------------- #
+# Slice 4 — Mistakes, ranking ledger, readiness cache, daily stats/streak
+# (docs/spec/02 domain-model, 07 readiness, 10 ranking)
+# --------------------------------------------------------------------------- #
+class MistakeEntry(TimestampMixin, Base):
+    """One row per (user, question) that was ever missed. Mistakes track the
+    *question container*, not a version — re-practice uses the current version.
+    v1 resolves on the first correct re-answer (spaced repetition is v2)."""
+
+    __tablename__ = "mistake_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "question_id", name="uq_mistake_user_question"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("questions.id"), nullable=False, index=True
+    )
+    first_missed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_missed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    miss_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    last_result: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    user: Mapped[User] = relationship()
+    question: Mapped[Question] = relationship()
+
+
+class UserPointsLedger(TimestampMixin, Base):
+    """Append-only, idempotent points ledger (docs/spec/10). Points are computed
+    server-side from stored facts; the client never submits points. The UNIQUE
+    constraint makes crediting idempotent under retries/concurrency."""
+
+    __tablename__ = "user_points_ledger"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "source", "ref_type", "ref_id", name="uq_ledger_idempotent"
+        ),
+        Index("ix_ledger_user_local_date", "user_id", "local_date"),
+        Index("ix_ledger_local_date", "local_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    source: Mapped[PointsSource] = mapped_column(
+        Enum(PointsSource, native_enum=False, length=32), nullable=False
+    )
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    ref_type: Mapped[str] = mapped_column(String(32), nullable=False)  # question|mock_attempt|...
+    ref_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    local_date: Mapped[date] = mapped_column(Date, nullable=False)  # daily caps + aggregation
+
+    user: Mapped[User] = relationship()
+
+
+class ReadinessSnapshot(TimestampMixin, Base):
+    """Optional cache of the computed readiness (docs/spec/07). One row per user,
+    recomputed after each mock completion or on demand."""
+
+    __tablename__ = "readiness_snapshots"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_readiness_user"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    state: Mapped[ReadinessState] = mapped_column(
+        Enum(ReadinessState, native_enum=False, length=32), nullable=False
+    )
+    score: Mapped[int | None] = mapped_column(Integer)  # null unless initial/ready_estimate
+    exam_ready: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    payload_json: Mapped[dict | None] = mapped_column(JSON)  # full breakdown for the dashboard
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship()
+
+
+class StudentDailyStat(TimestampMixin, Base):
+    """Per-day activity roll-up (kept from SATStudy; feeds streaks + ranking
+    consistency). One row per (user, local date)."""
+
+    __tablename__ = "student_daily_stats"
+    __table_args__ = (
+        UniqueConstraint("user_id", "stat_date", name="uq_daily_stat_user_date"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    stat_date: Mapped[date] = mapped_column(Date, nullable=False)
+    answers_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    correct_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    user: Mapped[User] = relationship()
+
+
+class Streak(TimestampMixin, Base):
+    """Current/longest active-day streak (kept from SATStudy). One row per user."""
+
+    __tablename__ = "streaks"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_streak_user"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_active_date: Mapped[date | None] = mapped_column(Date)
+
+    user: Mapped[User] = relationship()

@@ -122,3 +122,21 @@ def role_rank(role: "AdminRole | None") -> int:
     if role is None:
         return 0
     return ADMIN_ROLE_ORDER.get(role, 0)
+
+
+class PointsSource(StrEnum):
+    """Ledger point sources (docs/spec/10-ranking.md)."""
+
+    PRACTICE_UNIQUE = "practice_unique"
+    MISTAKE_RECOVERY = "mistake_recovery"
+    MOCK_CORRECT = "mock_correct"
+    MOCK_BONUS = "mock_bonus"
+    DAILY_CONSISTENCY = "daily_consistency"
+
+
+class ReadinessState(StrEnum):
+    """Readiness display states (docs/spec/07-readiness.md)."""
+
+    INSUFFICIENT_DATA = "insufficient_data"
+    INITIAL = "initial"
+    READY_ESTIMATE = "ready_estimate"

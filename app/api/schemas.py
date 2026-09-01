@@ -39,6 +39,8 @@ class ProfileIn(BaseModel):
 class PracticeSessionIn(BaseModel):
     model_config = {"extra": "ignore"}
     topic: str | None = None
+    # Optional practice mode: topic | mixed | mistakes | sign_trainer (server-validated).
+    source: str | None = None
 
 
 class PracticeAnswerIn(BaseModel):

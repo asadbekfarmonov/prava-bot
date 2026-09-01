@@ -14,7 +14,7 @@ from app.api.schemas import (
 )
 from app.api.telegram_auth import TelegramAuthError, validate_init_data
 from app.config import get_settings
-from app.domain.enums import Category, Language, Topic
+from app.domain.enums import Category, Language, PracticeSource, Topic
 from app.domain.models import StudentProfile
 from app.observability.logging import log_event
 from app.services import mock, practice
@@ -132,12 +132,36 @@ def _parse_topic(topic: str | None) -> Topic | None:
         ) from exc
 
 
+def _parse_source(source: str | None, topic: Topic | None) -> PracticeSource:
+    if source is None or source == "":
+        return PracticeSource.TOPIC if topic else PracticeSource.MIXED
+    try:
+        parsed = PracticeSource(source)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Noma'lum mashq turi"
+        ) from exc
+    # diagnostic is handled by onboarding; students may only pick these here.
+    if parsed not in {
+        PracticeSource.TOPIC,
+        PracticeSource.MIXED,
+        PracticeSource.MISTAKES,
+        PracticeSource.SIGN_TRAINER,
+    }:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Noma'lum mashq turi")
+    return parsed
+
+
 @router.post("/practice/sessions")
 def create_practice_session(
     payload: PracticeSessionIn, user: CompletedOnboardingUser, db: DbSession
 ) -> dict:
     topic = _parse_topic(payload.topic)
-    session = practice.create_practice_session(db, user, topic)
+    source = _parse_source(payload.source, topic)
+    # mistakes / sign_trainer are not topic-scoped sessions.
+    if source in {PracticeSource.MISTAKES, PracticeSource.SIGN_TRAINER}:
+        topic = None
+    session = practice.create_practice_session(db, user, topic, source=source)
     return {
         "id": session.id,
         "topic": session.topic.value if session.topic else None,
@@ -165,7 +189,24 @@ def next_question(
     user: CompletedOnboardingUser,
     db: DbSession,
     topic: str | None = Query(default=None),
+    source: str | None = Query(default=None),
 ) -> dict:
+    if source == "mistakes":
+        payload = practice.next_mistake_payload(db, user)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Xatolar navbati bo'sh — barakalla!",
+            )
+        return payload
+    if source == "sign_trainer":
+        payload = practice.next_sign_payload(db, user.profile.category)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Belgi savollari topilmadi"
+            )
+        return payload
+
     parsed = _parse_topic(topic)
     payload = practice.next_question_payload(db, parsed)
     if payload is None:
@@ -173,6 +214,13 @@ def next_question(
             status_code=status.HTTP_404_NOT_FOUND, detail="Bu mavzuda savol topilmadi"
         )
     return payload
+
+
+@router.get("/practice/mistakes")
+def list_mistakes(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import mistakes as mistakes_service
+
+    return {"mistakes": mistakes_service.queue(db, user)}
 
 
 @router.post("/practice/answers")
@@ -256,3 +304,33 @@ def create_report(payload: ReportIn, user: CurrentUser, db: DbSession) -> dict:
         note=payload.note,
     )
     return {"id": report.id, "status": report.status.value}
+
+
+# --------------------------------------------------------------------------- #
+# Readiness / dashboard / ranking (Slice 4) — docs/spec/07, 10, 03
+# --------------------------------------------------------------------------- #
+@router.get("/readiness")
+def get_readiness(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import readiness as readiness_service
+
+    return readiness_service.compute(db, user)
+
+
+@router.get("/dashboard")
+def get_dashboard(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import dashboard as dashboard_service
+
+    return dashboard_service.build(db, user)
+
+
+@router.get("/ranking")
+def get_ranking(
+    user: CompletedOnboardingUser,
+    db: DbSession,
+    range: str = Query(default="all"),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict:
+    from app.services import ranking as ranking_service
+
+    range_key = range if range in {"week", "month", "all"} else "all"
+    return ranking_service.leaderboard(db, user, range_key, limit=limit)

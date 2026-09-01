@@ -7,10 +7,14 @@ import { t } from "./i18n/uz";
 import { AdminArea } from "./admin";
 import type {
   AnswerResult,
+  DashboardOut,
+  MistakeItem,
   MockAttemptState,
   MockReview,
   NextQuestion,
   ProfileOut,
+  RankingOut,
+  ReadinessOut,
   UserOut
 } from "./types";
 
@@ -76,7 +80,7 @@ function Onboarding({ onDone }: { onDone: (p: ProfileOut) => void }) {
   );
 }
 
-function Practice({ onExit }: { onExit: () => void }) {
+function Practice({ onExit, fixedSource, title }: { onExit: () => void; fixedSource?: string; title?: string }) {
   const [topic, setTopic] = useState<string>("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [question, setQuestion] = useState<NextQuestion | null>(null);
@@ -87,33 +91,39 @@ function Practice({ onExit }: { onExit: () => void }) {
 
   const topicArg = useMemo(() => (topic === "" ? null : topic), [topic]);
 
-  async function start() {
+  const loadNext = useCallback(async () => {
+    setResult(null);
+    setSelected(null);
+    setError(null);
+    try {
+      const q = await api.nextQuestion(fixedSource ? null : topicArg, fixedSource);
+      setQuestion(q);
+    } catch (e) {
+      setQuestion(null);
+      setError(String((e as Error).message));
+    }
+  }, [fixedSource, topicArg]);
+
+  const start = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const s = await api.createSession(topicArg);
+      const s = await api.createSession(fixedSource ? null : topicArg, fixedSource);
       setSessionId(s.id);
-      await loadNext(s.id);
+      await loadNext();
     } catch (e) {
       setError(String((e as Error).message));
     } finally {
       setLoading(false);
     }
-  }
+  }, [fixedSource, topicArg, loadNext]);
 
-  async function loadNext(sid: string | null = sessionId) {
-    setResult(null);
-    setSelected(null);
-    setError(null);
-    try {
-      const q = await api.nextQuestion(topicArg);
-      setQuestion(q);
-      void sid;
-    } catch (e) {
-      setQuestion(null);
-      setError(String((e as Error).message));
+  // Fixed-source modes (mistakes / sign trainer) skip topic selection and auto-start.
+  useEffect(() => {
+    if (fixedSource && !sessionId) {
+      void start();
     }
-  }
+  }, [fixedSource, sessionId, start]);
 
   async function submit() {
     if (!sessionId || !question || !selected) return;
@@ -128,11 +138,11 @@ function Practice({ onExit }: { onExit: () => void }) {
     }
   }
 
-  if (!sessionId) {
+  if (!sessionId && !fixedSource) {
     return (
       <div className="card">
         <button className="secondary" onClick={onExit}>{t("backHome")}</button>
-        <h1>{t("startPractice")}</h1>
+        <h1>{title || t("startPractice")}</h1>
         <select value={topic} onChange={(e) => setTopic(e.target.value)}>
           <option value="">{t("topicAll")}</option>
           {TOPICS.map((tp) => (
@@ -146,13 +156,21 @@ function Practice({ onExit }: { onExit: () => void }) {
   }
 
   if (!question) {
-    return <div className="card"><p>{error || t("noQuestions")}</p></div>;
+    return (
+      <div className="card">
+        <button className="secondary" onClick={onExit}>{t("backHome")}</button>
+        <p>{error || t("loading")}</p>
+      </div>
+    );
   }
 
   return (
     <div className="card">
+      <button className="secondary" onClick={onExit}>{t("backHome")}</button>
+      {title && <p className="muted">{title}</p>}
       <p className="muted">{question.topic}</p>
       <h1>{question.prompt}</h1>
+      {question.media_id && <div className="exam-media muted">[media: {question.media_id}]</div>}
       {question.options.map((o) => {
         let cls = "option";
         if (result) {
@@ -470,7 +488,185 @@ function ExamMode({ onExit }: { onExit: () => void }) {
   );
 }
 
-type Screen = "home" | "practice" | "mock" | "admin";
+type Screen = "home" | "practice" | "mock" | "admin" | "progress" | "mistakes" | "signs" | "ranking";
+
+function readinessClass(state: string): string {
+  if (state === "ready_estimate") return "pass";
+  if (state === "initial") return "muted";
+  return "muted";
+}
+
+function Progress({ onExit, onStartMistakes, onStartSigns }: {
+  onExit: () => void;
+  onStartMistakes: () => void;
+  onStartSigns: () => void;
+}) {
+  const [data, setData] = useState<DashboardOut | null>(null);
+  const [readiness, setReadiness] = useState<ReadinessOut | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.dashboard().then(setData).catch((e) => setError(String(e.message)));
+    api.readiness().then(setReadiness).catch(() => undefined);
+  }, []);
+
+  if (error) return <div className="card"><button className="secondary" onClick={onExit}>{t("backHome")}</button><p className="explain">{error}</p></div>;
+  if (!data) return <div className="card"><p>{t("loading")}</p></div>;
+
+  const r = data.readiness;
+  return (
+    <div className="card">
+      <button className="secondary" onClick={onExit}>{t("backHome")}</button>
+      <h1>{t("progressTitle")}</h1>
+
+      <div className="rule">
+        <strong className={readinessClass(r.state)}>{r.label}</strong>
+        {r.exam_ready && <span className="pass"> · {t("examReadyBadge")} ✅</span>}
+      </div>
+
+      {!r.coverage_met && r.remaining_coverage.length > 0 && (
+        <div>
+          <p><strong>{t("remainingTopics")}:</strong></p>
+          <ul>
+            {r.remaining_coverage.map((tp) => (
+              <li key={tp.topic} className="explain">
+                {tp.label} ({tp.answered}/{tp.needed})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.weak_topics.length > 0 && (
+        <div>
+          <p><strong>{t("weakTopics")}:</strong></p>
+          <ul>
+            {data.weak_topics.map((wt) => (
+              <li key={wt.topic} className="explain">
+                {wt.label} — {Math.round(wt.mastery * 100)}%
+                {wt.needs_more_practice && ` (${t("needsMorePractice")})`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="muted">
+        {t("streakLabel")}: {data.streak.current} · {t("dailyGoal")}: {data.daily_goal.answered_today}
+        {data.daily_goal.goal ? `/${data.daily_goal.goal}` : ""}
+      </p>
+      <p className="muted">
+        {t("ranking")}: {t("rankingWeek")} {data.ranking.week} · {t("rankingAll")} {data.ranking.all} {t("points")}
+      </p>
+
+      {readiness && (
+        <p className="muted">
+          {t("mistakes")}: {data.mistakes_open}
+        </p>
+      )}
+
+      <div style={{ height: 12 }} />
+      <button onClick={onStartMistakes}>{t("startMistakes")}</button>
+      <div style={{ height: 8 }} />
+      <button className="secondary" onClick={onStartSigns}>{t("signTrainer")}</button>
+    </div>
+  );
+}
+
+function MistakesScreen({ onExit }: { onExit: () => void }) {
+  const [items, setItems] = useState<MistakeItem[] | null>(null);
+  const [practising, setPractising] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!practising) {
+      api.mistakes().then((r) => setItems(r.mistakes)).catch((e) => setError(String(e.message)));
+    }
+  }, [practising]);
+
+  if (practising) {
+    return <Practice onExit={() => setPractising(false)} fixedSource="mistakes" title={t("mistakesTitle")} />;
+  }
+
+  return (
+    <div className="card">
+      <button className="secondary" onClick={onExit}>{t("backHome")}</button>
+      <h1>{t("mistakesTitle")}</h1>
+      {error && <p className="explain">{error}</p>}
+      {items && items.length === 0 && <p className="muted">{t("noMistakes")}</p>}
+      {items && items.length > 0 && (
+        <>
+          <ul>
+            {items.map((m) => (
+              <li key={m.question_id} className="explain">
+                {m.prompt || m.topic} — {t("missCount")}: {m.miss_count}
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => setPractising(true)}>{t("startMistakes")}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RankingScreen({ onExit }: { onExit: () => void }) {
+  const [range, setRange] = useState<"week" | "month" | "all">("week");
+  const [data, setData] = useState<RankingOut | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.ranking(range).then(setData).catch((e) => setError(String(e.message)));
+  }, [range]);
+
+  const tabs: Array<["week" | "month" | "all", string]> = [
+    ["week", t("rankingWeek")],
+    ["month", t("rankingMonth")],
+    ["all", t("rankingAll")]
+  ];
+
+  const ownInList = data ? data.entries.some((e) => e.is_self) : false;
+
+  return (
+    <div className="card">
+      <button className="secondary" onClick={onExit}>{t("backHome")}</button>
+      <h1>{t("ranking")}</h1>
+      <div className="exam-actions">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            className={"secondary" + (range === key ? " marked" : "")}
+            onClick={() => setRange(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {error && <p className="explain">{error}</p>}
+      {data && data.entries.length === 0 && <p className="muted">{t("emptyRanking")}</p>}
+      {data && (
+        <table className="ranking-table">
+          <tbody>
+            {data.entries.map((row) => (
+              <tr key={row.position} className={row.is_self ? "own-row" : ""}>
+                <td>{row.position}.</td>
+                <td>{row.is_self ? `${row.name} (${t("you")})` : row.name}</td>
+                <td>{row.points}</td>
+              </tr>
+            ))}
+            {!ownInList && (
+              <tr className="own-row">
+                <td>{data.own.position}.</td>
+                <td>{data.own.name} ({t("you")})</td>
+                <td>{data.own.points}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 function Home({ onPick, user }: { onPick: (s: Screen) => void; user: UserOut }) {
   return (
@@ -480,6 +676,14 @@ function Home({ onPick, user }: { onPick: (s: Screen) => void; user: UserOut }) 
       <button onClick={() => onPick("practice")}>{t("practiceMode")}</button>
       <div style={{ height: 8 }} />
       <button onClick={() => onPick("mock")}>{t("startMock")}</button>
+      <div style={{ height: 8 }} />
+      <button className="secondary" onClick={() => onPick("progress")}>{t("progress")}</button>
+      <div style={{ height: 8 }} />
+      <button className="secondary" onClick={() => onPick("mistakes")}>{t("mistakes")}</button>
+      <div style={{ height: 8 }} />
+      <button className="secondary" onClick={() => onPick("signs")}>{t("signTrainer")}</button>
+      <div style={{ height: 8 }} />
+      <button className="secondary" onClick={() => onPick("ranking")}>{t("ranking")}</button>
       {user.admin_role && (
         <>
           <div style={{ height: 8 }} />
@@ -508,6 +712,18 @@ function App() {
   if (screen === "practice") return <Practice onExit={() => setScreen("home")} />;
   if (screen === "mock") return <ExamMode onExit={() => setScreen("home")} />;
   if (screen === "admin") return <AdminArea role={user.admin_role} onExit={() => setScreen("home")} />;
+  if (screen === "progress")
+    return (
+      <Progress
+        onExit={() => setScreen("home")}
+        onStartMistakes={() => setScreen("mistakes")}
+        onStartSigns={() => setScreen("signs")}
+      />
+    );
+  if (screen === "mistakes") return <MistakesScreen onExit={() => setScreen("home")} />;
+  if (screen === "signs")
+    return <Practice onExit={() => setScreen("home")} fixedSource="sign_trainer" title={t("signTrainer")} />;
+  if (screen === "ranking") return <RankingScreen onExit={() => setScreen("home")} />;
   return <Home onPick={setScreen} user={user} />;
 }
 

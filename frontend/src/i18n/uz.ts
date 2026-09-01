@@ -42,7 +42,30 @@ export const uz = {
   backHome: "Bosh sahifaga qaytish",
   correctAnswerLabel: "To'g'ri javob",
   prev: "Oldingi",
-  examInProgressResume: "Imtihon davom etmoqda"
+  examInProgressResume: "Imtihon davom etmoqda",
+  progressTitle: "Tayyorgarlik va natijalar",
+  progress: "Natijalarim",
+  mistakesTitle: "Xatolar ustida ishlash",
+  mistakes: "Xatolarim",
+  signTrainer: "Yo'l belgilari mashqi",
+  ranking: "Reyting",
+  rankingWeek: "Bu hafta",
+  rankingMonth: "Bu oy",
+  rankingAll: "Barcha vaqt",
+  you: "Siz",
+  points: "ball",
+  examReadyBadge: "Imtihonga tayyor",
+  remainingTopics: "Qolgan mavzular",
+  weakTopics: "Zaif mavzular",
+  needsMorePractice: "ko'proq mashq kerak",
+  streakLabel: "Ketma-ket kunlar",
+  dailyGoal: "Kunlik maqsad",
+  noMistakes: "Xatolar yo'q — barakalla!",
+  startMistakes: "Xatolarni takrorlash",
+  resolved: "Hal qilindi",
+  missCount: "Xato soni",
+  emptyRanking: "Hozircha ball yo'q",
+  answered: "javob berildi"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

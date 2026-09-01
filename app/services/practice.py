@@ -33,13 +33,19 @@ _LANG = Language.UZ
 
 
 def create_practice_session(
-    db: Session, user: User, topic: Topic | None, category: Category = Category.B
+    db: Session,
+    user: User,
+    topic: Topic | None,
+    category: Category = Category.B,
+    source: PracticeSource | None = None,
 ) -> PracticeSession:
+    if source is None:
+        source = PracticeSource.TOPIC if topic else PracticeSource.MIXED
     session = PracticeSession(
         user_id=user.id,
         category=category,
         topic=topic,
-        source=PracticeSource.TOPIC if topic else PracticeSource.MIXED,
+        source=source,
     )
     db.add(session)
     db.commit()
@@ -110,13 +116,27 @@ def _option_explanation(db: Session, option_id: str) -> str:
     return tr.explanation if tr else ""
 
 
-def next_question_payload(
-    db: Session, topic: Topic | None, category: Category = Category.B
-) -> dict | None:
-    """Safe payload: prompt + option ids/text/position ONLY. No correctness/explanation/rule."""
-    version = pick_next_version(db, topic, category)
-    if version is None:
+def _sign_version_query(category: Category):
+    return (
+        select(QuestionVersion)
+        .join(Question, Question.current_version_id == QuestionVersion.id)
+        .where(
+            QuestionVersion.status == VersionStatus.PUBLISHED,
+            Question.category == category,
+            Question.is_sign_question.is_(True),
+        )
+    )
+
+
+def pick_next_sign_version(db: Session, category: Category = Category.B) -> QuestionVersion | None:
+    version_ids = list(db.scalars(_sign_version_query(category).with_only_columns(QuestionVersion.id)))
+    if not version_ids:
         return None
+    return db.get(QuestionVersion, random.choice(version_ids))
+
+
+def _payload_for_version(db: Session, version: QuestionVersion) -> dict:
+    """Safe no-leak payload for a specific version: prompt + option ids/text/position."""
     translation = _uz_prompt(db, version)
     options = list(
         db.scalars(
@@ -132,12 +152,39 @@ def next_question_payload(
         "topic": question.topic.value if question else None,
         "is_sign_question": bool(question and question.is_sign_question),
         "prompt": translation.prompt if translation else "",
-        # media metadata is out of practice-loop slice 1 payload beyond a reference
         "media_id": version.media_id,
         "options": [
             {"id": o.id, "position": o.position, "text": _option_text(db, o.id)} for o in options
         ],
     }
+
+
+def next_question_payload(
+    db: Session, topic: Topic | None, category: Category = Category.B
+) -> dict | None:
+    """Safe payload: prompt + option ids/text/position ONLY. No correctness/explanation/rule."""
+    version = pick_next_version(db, topic, category)
+    if version is None:
+        return None
+    return _payload_for_version(db, version)
+
+
+def next_mistake_payload(db: Session, user: User) -> dict | None:
+    """No-leak payload for the top of the user's (unresolved) mistakes queue."""
+    from app.services import mistakes as mistakes_service
+
+    version = mistakes_service.pick_next_mistake_version(db, user)
+    if version is None:
+        return None
+    return _payload_for_version(db, version)
+
+
+def next_sign_payload(db: Session, category: Category = Category.B) -> dict | None:
+    """No-leak payload for a random published sign question (road-sign trainer)."""
+    version = pick_next_sign_version(db, category)
+    if version is None:
+        return None
+    return _payload_for_version(db, version)
 
 
 def _rule_for_version(db: Session, version: QuestionVersion) -> dict | None:
@@ -212,6 +259,25 @@ def submit_answer(
         attempted_at=datetime.now(timezone.utc),
     )
     db.add(answer)
+    db.flush()
+
+    # Slice 4 hooks: mistakes upsert/resolve, daily activity, learning-weighted points.
+    # (Order matters: record activity before crediting so the daily-consistency check
+    # sees today's answer count.)
+    from app.services import mistakes as mistakes_service
+    from app.services import ranking as ranking_service
+    from app.services import stats as stats_service
+
+    mistake_result = mistakes_service.record_answer(db, user, question.id, is_correct)
+    stats_service.record_activity(db, user, correct=is_correct)
+    ranking_service.credit_practice_answer(
+        db,
+        user,
+        question.id,
+        is_correct,
+        time_spent_seconds,
+        resolved_mistake=bool(mistake_result.get("resolved")),
+    )
     db.commit()
 
     translation = _uz_prompt(db, version)

@@ -220,3 +220,90 @@ export interface MediaOut {
   media_type: string;
   url: string;
 }
+
+// ---- Slice 4: readiness / dashboard / ranking / mistakes ----
+export interface RemainingTopic {
+  topic: string;
+  label: string;
+  answered: number;
+  needed: number;
+}
+
+export interface WeakTopic {
+  topic: string;
+  label: string;
+  answered: number;
+  mastery: number;
+  needs_more_practice: boolean;
+}
+
+export interface ReadinessComponent {
+  value: number;
+  weight: number;
+  [k: string]: unknown;
+}
+
+export interface ReadinessOut {
+  state: "insufficient_data" | "initial" | "ready_estimate";
+  label: string;
+  score: number | null;
+  exam_ready: boolean;
+  unique_questions_attempted: number;
+  mocks_completed: number;
+  coverage_met: boolean;
+  remaining_coverage: RemainingTopic[];
+  components: {
+    mock_performance: ReadinessComponent;
+    topic_mastery: ReadinessComponent;
+    mistake_recovery: ReadinessComponent;
+    consistency_recency: ReadinessComponent;
+  };
+  weak_topics: WeakTopic[];
+}
+
+export interface DashboardOut {
+  readiness: {
+    state: string;
+    label: string;
+    score: number | null;
+    exam_ready: boolean;
+    coverage_met: boolean;
+    remaining_coverage: RemainingTopic[];
+  };
+  weak_topics: WeakTopic[];
+  recent_mocks: Array<{
+    id: string;
+    correct_count: number | null;
+    question_count: number;
+    passed: boolean | null;
+    completed_at: string | null;
+  }>;
+  daily_goal: { goal: number | null; answered_today: number; met: boolean };
+  streak: { current: number; longest: number };
+  mistakes_open: number;
+  ranking: { week: number; month: number; all: number };
+}
+
+export interface MistakeItem {
+  question_id: string;
+  topic: string | null;
+  prompt: string;
+  miss_count: number;
+  last_missed_at: string | null;
+  resolved: boolean;
+}
+
+export interface RankingRow {
+  position: number;
+  user_id?: string;
+  name: string;
+  points: number;
+  is_self: boolean;
+  show_on_ranking?: boolean;
+}
+
+export interface RankingOut {
+  range: "week" | "month" | "all";
+  entries: RankingRow[];
+  own: RankingRow;
+}

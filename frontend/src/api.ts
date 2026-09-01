@@ -1,9 +1,13 @@
 import type {
   AnswerResult,
+  DashboardOut,
+  MistakeItem,
   MockAttemptState,
   MockReview,
   NextQuestion,
   ProfileOut,
+  RankingOut,
+  ReadinessOut,
   UserOut
 } from "./types";
 
@@ -44,14 +48,17 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ display_name: displayName, category: "B", language: "uz" })
     }),
-  createSession: (topic: string | null) =>
+  createSession: (topic: string | null, source?: string) =>
     request<{ id: string }>("/api/practice/sessions", {
       method: "POST",
-      body: JSON.stringify({ topic })
+      body: JSON.stringify({ topic, source })
     }),
-  nextQuestion: (topic: string | null) => {
-    const qs = topic ? `?topic=${encodeURIComponent(topic)}` : "";
-    return request<NextQuestion>(`/api/practice/questions/next${qs}`);
+  nextQuestion: (topic: string | null, source?: string) => {
+    const params = new URLSearchParams();
+    if (topic) params.set("topic", topic);
+    if (source) params.set("source", source);
+    const qs = params.toString();
+    return request<NextQuestion>(`/api/practice/questions/next${qs ? `?${qs}` : ""}`);
   },
   submitAnswer: (sessionId: string, questionId: string, optionId: string) =>
     request<AnswerResult>("/api/practice/answers", {
@@ -86,7 +93,12 @@ export const api = {
     ),
   submitMock: (id: string) =>
     request<MockAttemptState>(`/api/mock/attempts/${id}/submit`, { method: "POST", body: JSON.stringify({}) }),
-  reviewMock: (id: string) => request<MockReview>(`/api/mock/attempts/${id}/review`)
+  reviewMock: (id: string) => request<MockReview>(`/api/mock/attempts/${id}/review`),
+  readiness: () => request<ReadinessOut>("/api/readiness"),
+  dashboard: () => request<DashboardOut>("/api/dashboard"),
+  ranking: (range: "week" | "month" | "all") =>
+    request<RankingOut>(`/api/ranking?range=${range}`),
+  mistakes: () => request<{ mistakes: MistakeItem[] }>("/api/practice/mistakes")
 };
 
 export const adminApi = {

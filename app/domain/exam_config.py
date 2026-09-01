@@ -12,6 +12,11 @@ mock slice snapshots from a single authority and never from scattered literals.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.domain.enums import Topic
+
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -61,17 +66,85 @@ def get_exam_config(category: Category = Category.B) -> ExamConfig:
         raise ValueError(f"No exam configuration for category {category!r} in v1.") from exc
 
 
+# --------------------------------------------------------------------------- #
+# Readiness configuration (docs/spec/07-readiness.md — the exact algorithm).
+# All thresholds/weights are DOMAIN config; never env vars. Tuning them must not
+# require code changes elsewhere.
+# --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
-class ReadinessThresholds:
-    """Readiness/ranking thresholds also live in domain config (docs/spec/07)."""
-
+class ReadinessConfig:
     version: int = 1
-    minimum_answers_for_estimate: int = 100
-    minimum_topics_covered: int = 15  # curriculum-coverage gate: all 15 topics
-    ready_estimate_accuracy: float = 0.85
+    # state gating
+    min_unique_questions_for_display: int = 40
+    min_unique_questions_for_full: int = 100
+    min_mocks_for_full: int = 3
+    # component windows / samples
+    recent_mock_count: int = 5
+    recent_window_days: int = 30
+    topic_min_answers: int = 5      # answers needed for a topic to COUNT in mastery
+    mistakes_min_sample: int = 5
+    # curriculum coverage (closes the "only studied signs & parking" gap)
+    gate_min_answers_per_topic: int = 5
+    # advisory "exam ready" gate
+    gate_last_n_mocks: int = 3
+    gate_required_passes: int = 2
+    gate_major_topic_min: float = 0.70
+    gate_min_unique_questions: int = 100
+    # weights (sum = 1.0)
+    weight_mock_performance: float = 0.40
+    weight_topic_mastery: float = 0.30
+    weight_mistake_recovery: float = 0.20
+    weight_consistency_recency: float = 0.10
 
 
-READINESS_THRESHOLDS = ReadinessThresholds()
+READINESS_CONFIG = ReadinessConfig()
+
+
+def get_readiness_config() -> ReadinessConfig:
+    """Return the current readiness config (module global; monkeypatchable in tests)."""
+    return READINESS_CONFIG
+
+
+# Backwards-compatible alias (older code/tests may import this name).
+ReadinessThresholds = ReadinessConfig
+READINESS_THRESHOLDS = READINESS_CONFIG
+
+
+# --------------------------------------------------------------------------- #
+# Ranking configuration (docs/spec/10-ranking.md — learning-weighted points).
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class RankingConfig:
+    version: int = 1
+    practice_unique_correct: int = 1
+    mistake_recovery: int = 2
+    mock_correct: int = 1
+    # highest pass bonus (only one per mock; keyed by server-graded correct_count)
+    mock_bonus: dict[int, int] = field(default_factory=lambda: {18: 10, 19: 20, 20: 35})
+    daily_consistency: int = 5
+    daily_practice_cap: int = 50
+    min_answer_seconds: int = 2         # answers faster than this earn 0 (anti-bot)
+    max_mock_bonus_per_day: int = 3     # only N mock bonuses count per day
+    # an "active day" = met the daily goal OR answered at least this many questions
+    active_day_min_answers: int = 10
+    # server max page size for leaderboard reads
+    leaderboard_max_limit: int = 100
+
+
+RANKING_CONFIG = RankingConfig()
+
+
+def get_ranking_config() -> RankingConfig:
+    """Return the current ranking config (module global; monkeypatchable in tests)."""
+    return RANKING_CONFIG
+
+
+# The v1 curriculum topics that the coverage gate requires (all 15 YHQ groups).
+def all_v1_topics() -> list["Topic"]:
+    from app.domain.enums import Topic
+
+    return list(Topic)
+
 
 # Answer-option bounds exposed for validation helpers (single source).
 ANSWER_OPTIONS_MIN: int = EXAM_CONFIG_B_V1.answer_options_min

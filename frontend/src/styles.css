@@ -65,3 +65,8 @@ button.marked { background: #c98a12; color: #fff; }
 .checklist li.pass { color: #2a7; }
 .checklist li.fail { color: #c22; }
 .review-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+.ranking-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.ranking-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.ranking-table td:last-child { text-align: right; font-weight: 600; }
+.ranking-table .own-row { background: rgba(80,160,255,0.18); border-radius: 6px; }

@@ -177,7 +177,63 @@ def _finalize(db: Session, attempt: MockAttempt, *, at: datetime | None = None) 
     }
     db.commit()
     db.refresh(attempt)
+
+    # Slice 4 hooks (run once, on the in_progress -> completed transition above):
+    # upsert/resolve mistakes from the graded answers, then credit ranking points and
+    # recompute the cached readiness snapshot. Idempotent via the ledger UNIQUE.
+    _post_finalize_hooks(db, attempt)
     return attempt
+
+
+def _post_finalize_hooks(db: Session, attempt: MockAttempt) -> None:
+    from app.services import mistakes as mistakes_service
+    from app.services import ranking as ranking_service
+    from app.services import readiness as readiness_service
+    from app.services import stats as stats_service
+
+    owner = db.get(User, attempt.user_id)
+    if owner is None:
+        return
+
+    mock_questions = list(
+        db.scalars(
+            select(MockQuestion).where(MockQuestion.mock_attempt_id == attempt.id)
+        )
+    )
+    answers = {
+        a.question_version_id: a
+        for a in db.scalars(select(MockAnswer).where(MockAnswer.mock_attempt_id == attempt.id))
+    }
+    # Count the completed mock as one active-day's activity (answered questions).
+    answered = sum(
+        1 for a in answers.values() if a.selected_option_id is not None
+    )
+    if answered:
+        # Record the whole graded mock as one active-day's activity; correct_count
+        # must reflect the server-graded correct answers, not a flat +1.
+        stats_service.record_activity(
+            db,
+            owner,
+            correct=False,
+            answers=answered,
+            correct_answers=int(attempt.correct_count or 0),
+        )
+
+    # Upsert/resolve mistakes per graded answer (only answered ones carry a grade).
+    for mq in mock_questions:
+        ans = answers.get(mq.question_version_id)
+        if ans is None or ans.selected_option_id is None:
+            continue
+        version = db.get(QuestionVersion, mq.question_version_id)
+        if version is None:
+            continue
+        res = mistakes_service.record_answer(db, owner, version.question_id, bool(ans.is_correct))
+        if res.get("resolved"):
+            ranking_service.credit_mistake_recovery(db, owner, version.question_id)
+
+    ranking_service.credit_mock(db, attempt)
+    readiness_service.recompute_and_cache(db, owner)
+    db.commit()
 
 
 def _finalize_if_expired(db: Session, attempt: MockAttempt) -> MockAttempt:
