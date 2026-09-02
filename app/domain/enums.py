@@ -104,6 +104,7 @@ class PracticeSource(StrEnum):
     MISTAKES = "mistakes"
     SIGN_TRAINER = "sign_trainer"
     DIAGNOSTIC = "diagnostic"
+    THEORY = "theory"
 
 
 class SourceKind(StrEnum):
@@ -161,3 +162,82 @@ class ReadinessState(StrEnum):
     INSUFFICIENT_DATA = "insufficient_data"
     INITIAL = "initial"
     READY_ESTIMATE = "ready_estimate"
+
+
+# --------------------------------------------------------------------------- #
+# Theory / YHQ Handbook + catalogue enums (docs/spec/14, 15).
+# All are non-native (VARCHAR) enums persisted by member NAME, consistent with the
+# rest of the model; adding members later is additive (no data migration).
+# --------------------------------------------------------------------------- #
+class TheoryArticleKind(StrEnum):
+    LESSON = "lesson"
+    REFERENCE = "reference"
+    QUICK_REF = "quick_ref"
+    COMMON_MISTAKE = "common_mistake"
+
+
+class TheoryBlockType(StrEnum):
+    """Fixed palette of structured content blocks (NO raw HTML; text nodes only)."""
+
+    TEXT = "text"
+    RULE_CALLOUT = "rule_callout"
+    IMAGE = "image"
+    ANIMATION = "animation"
+    DIAGRAM = "diagram"
+    COMPARISON = "comparison"
+    WARNING = "warning"
+    MEMORY_TIP = "memory_tip"
+    TABLE = "table"
+    EXAMPLE = "example"
+    PRACTICE_LINK = "practice_link"
+
+
+class RoadSignFamily(StrEnum):
+    WARNING = "warning"
+    PRIORITY = "priority"
+    PROHIBITORY = "prohibitory"
+    MANDATORY = "mandatory"
+    INFORMATION = "information"
+    SERVICE = "service"
+    ADDITIONAL_PLATE = "additional_plate"
+
+
+class RoadMarkingGroup(StrEnum):
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
+    TEMPORARY = "temporary"
+
+
+class TrafficLightKind(StrEnum):
+    MAIN = "main"
+    ARROW_SECTION = "arrow_section"
+    FLASHING = "flashing"
+    PEDESTRIAN = "pedestrian"
+    RAILWAY = "railway"
+    SPECIAL = "special"
+
+
+class TheoryTargetType(StrEnum):
+    """Polymorphic target for progress/favorites/reports across theory + catalogs."""
+
+    SECTION = "section"
+    ARTICLE = "article"
+    SIGN = "sign"
+    MARKING = "marking"
+    GESTURE = "gesture"
+    LIGHT = "light"
+    RULE = "rule"
+
+
+class TheoryProgressState(StrEnum):
+    VIEWED = "viewed"
+    PRACTISED = "practised"
+    MASTERED = "mastered"
+
+
+# Progress state ordering (never downgrade an achieved state).
+THEORY_PROGRESS_ORDER: dict[TheoryProgressState, int] = {
+    TheoryProgressState.VIEWED: 1,
+    TheoryProgressState.PRACTISED: 2,
+    TheoryProgressState.MASTERED: 3,
+}

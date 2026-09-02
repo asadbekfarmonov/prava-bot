@@ -150,3 +150,29 @@ def all_v1_topics() -> list["Topic"]:
 ANSWER_OPTIONS_MIN: int = EXAM_CONFIG_B_V1.answer_options_min
 ANSWER_OPTIONS_MAX: int = EXAM_CONFIG_B_V1.answer_options_max
 CORRECT_OPTIONS_PER_QUESTION: int = EXAM_CONFIG_B_V1.correct_options_per_question
+
+
+# --------------------------------------------------------------------------- #
+# Theory / YHQ Handbook configuration (docs/spec/14). DOMAIN config, never env.
+# 'mastered' is derived server-side from question performance on linked questions,
+# NOT from opening a page. These thresholds gate that derivation.
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class TheoryConfig:
+    version: int = 1
+    # A target counts as 'practised' after at least this many answered linked questions.
+    practised_min_answers: int = 1
+    # 'mastered' needs at least this many answered linked questions AND
+    # recent accuracy >= mastery_accuracy over the most recent window.
+    mastered_min_answers: int = 4
+    mastered_accuracy: float = 0.80
+    # Only the most-recent N answers per linked question set feed the accuracy window.
+    mastery_recent_window: int = 20
+
+
+THEORY_CONFIG = TheoryConfig()
+
+
+def get_theory_config() -> TheoryConfig:
+    """Return the current theory config (module global; monkeypatchable in tests)."""
+    return THEORY_CONFIG

@@ -83,14 +83,75 @@ async def upload_media(
 
 
 def _is_published_media(db: DbSession, media_id: str) -> bool:
-    return bool(
-        db.scalar(
-            select(QuestionVersion.id).where(
-                QuestionVersion.media_id == media_id,
-                QuestionVersion.status == VersionStatus.PUBLISHED,
-            ).limit(1)
-        )
+    if db.scalar(
+        select(QuestionVersion.id).where(
+            QuestionVersion.media_id == media_id,
+            QuestionVersion.status == VersionStatus.PUBLISHED,
+        ).limit(1)
+    ):
+        return True
+    return _is_published_theory_media(db, media_id)
+
+
+def _is_published_theory_media(db, media_id: str) -> bool:
+    """Media is also public when referenced by a PUBLISHED Theory/catalogue entity
+    (section icon, article hero/block media, sign/marking/gesture/light media)."""
+    from app.domain.models import (
+        ControllerGesture,
+        RoadMarking,
+        RoadSign,
+        TheoryArticle,
+        TheoryArticleVersion,
+        TheoryContentBlock,
+        TheorySection,
+        TrafficLightState,
     )
+
+    # Section icons on published sections.
+    if db.scalar(
+        select(TheorySection.id).where(
+            TheorySection.icon_media_id == media_id,
+            TheorySection.status == VersionStatus.PUBLISHED,
+        ).limit(1)
+    ):
+        return True
+
+    # Article hero media / block media on the CURRENT published article version.
+    if db.scalar(
+        select(TheoryArticleVersion.id)
+        .join(TheoryArticle, TheoryArticle.current_version_id == TheoryArticleVersion.id)
+        .where(
+            TheoryArticleVersion.hero_media_id == media_id,
+            TheoryArticle.lifecycle_status == VersionStatus.PUBLISHED,
+        ).limit(1)
+    ):
+        return True
+    if db.scalar(
+        select(TheoryContentBlock.id)
+        .join(TheoryArticle, TheoryArticle.current_version_id == TheoryContentBlock.article_version_id)
+        .where(
+            TheoryContentBlock.media_id == media_id,
+            TheoryArticle.lifecycle_status == VersionStatus.PUBLISHED,
+        ).limit(1)
+    ):
+        return True
+
+    # Catalogue container media (published containers only).
+    catalog = (
+        (RoadSign, (RoadSign.media_id,)),
+        (RoadMarking, (RoadMarking.media_id,)),
+        (ControllerGesture, (ControllerGesture.media_id, ControllerGesture.animation_media_id)),
+        (TrafficLightState, (TrafficLightState.media_id,)),
+    )
+    from sqlalchemy import or_
+
+    for model, media_cols in catalog:
+        cond = or_(*[col == media_id for col in media_cols])
+        if db.scalar(
+            select(model.id).where(cond, model.lifecycle_status == VersionStatus.PUBLISHED).limit(1)
+        ):
+            return True
+    return False
 
 
 def _requester_is_admin(request: Request, db) -> bool:

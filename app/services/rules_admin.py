@@ -152,9 +152,83 @@ def supersede_rule(
             version.question.lifecycle_status = VersionStatus.NEEDS_REVERIFICATION
             flipped.append(version.id)
 
+    # Also flip linked Theory / catalogue versions (docs/spec/14, 15 re-verification).
+    theory_flipped = _flip_theory_and_catalog(db, rule)
+
     record_audit(
         db, actor, "rule.supersede", "rule", rule.id, version=rule.version,
-        detail={"flipped_versions": flipped, "new_status": new_status.value},
+        detail={
+            "flipped_versions": flipped,
+            "flipped_theory": theory_flipped,
+            "new_status": new_status.value,
+        },
     )
     db.commit()
-    return {"rule": rule_out(db, rule), "flipped_version_ids": flipped}
+    return {
+        "rule": rule_out(db, rule),
+        "flipped_version_ids": flipped,
+        "flipped_theory": theory_flipped,
+    }
+
+
+_REVERIFY_FROM = (
+    VersionStatus.PUBLISHED,
+    VersionStatus.REVIEWED,
+    VersionStatus.NEEDS_REVIEW,
+)
+
+
+def _flip_theory_and_catalog(db, rule) -> dict[str, list[str]]:
+    """Flip every Theory article / sign / marking / gesture / light version linked (via
+    its *Rule link table) to an OLDER rule_version to NEEDS_REVERIFICATION so it re-enters
+    the admin review queue (docs/spec/14 versioning & re-verification)."""
+    from app.domain.models import (
+        ControllerGestureRule,
+        ControllerGestureVersion,
+        RoadMarkingRule,
+        RoadMarkingVersion,
+        RoadSignRule,
+        RoadSignVersion,
+        TheoryArticleRule,
+        TheoryArticleVersion,
+        TrafficLightStateRule,
+        TrafficLightStateVersion,
+    )
+
+    result: dict[str, list[str]] = {}
+
+    def _flip(link_model, link_version_attr, version_model, container_attr):
+        flipped_ids: list[str] = []
+        links = list(
+            db.scalars(
+                select(link_model).where(
+                    link_model.rule_id == rule.id,
+                    link_model.rule_version < rule.version,
+                )
+            )
+        )
+        for link in links:
+            version = db.get(version_model, getattr(link, link_version_attr))
+            if version is None or version.status not in _REVERIFY_FROM:
+                continue
+            version.status = VersionStatus.NEEDS_REVERIFICATION
+            container = getattr(version, container_attr)
+            if container is not None:
+                container.lifecycle_status = VersionStatus.NEEDS_REVERIFICATION
+            flipped_ids.append(version.id)
+        return flipped_ids
+
+    result["articles"] = _flip(
+        TheoryArticleRule, "article_version_id", TheoryArticleVersion, "article"
+    )
+    result["signs"] = _flip(RoadSignRule, "road_sign_version_id", RoadSignVersion, "road_sign")
+    result["markings"] = _flip(
+        RoadMarkingRule, "road_marking_version_id", RoadMarkingVersion, "road_marking"
+    )
+    result["gestures"] = _flip(
+        ControllerGestureRule, "gesture_version_id", ControllerGestureVersion, "gesture"
+    )
+    result["lights"] = _flip(
+        TrafficLightStateRule, "light_version_id", TrafficLightStateVersion, "light"
+    )
+    return result

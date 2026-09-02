@@ -32,9 +32,16 @@ from app.domain.enums import (
     ReadinessState,
     ReportReason,
     ReportStatus,
+    RoadMarkingGroup,
+    RoadSignFamily,
     RuleStatus,
     SourceKind,
+    TheoryArticleKind,
+    TheoryBlockType,
+    TheoryProgressState,
+    TheoryTargetType,
     Topic,
+    TrafficLightKind,
     VersionStatus,
 )
 
@@ -509,10 +516,14 @@ class ContentReport(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    # The EXACT version the reporter saw (never the mutable container).
-    question_version_id: Mapped[str] = mapped_column(
-        ForeignKey("question_versions.id"), nullable=False, index=True
+    # The EXACT version the reporter saw (never the mutable container). Nullable so the
+    # same queue can also hold Theory-content reports (docs/spec/14) keyed by target.
+    question_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=True, index=True
     )
+    # Optional Theory target (section/article/sign/marking/gesture/light/rule).
+    theory_target_type: Mapped[str | None] = mapped_column(String(32), index=True)
+    theory_target_id: Mapped[str | None] = mapped_column(String(36), index=True)
     reason: Mapped[ReportReason] = mapped_column(
         Enum(ReportReason, native_enum=False, length=32), nullable=False
     )
@@ -663,3 +674,771 @@ class Streak(TimestampMixin, Base):
     last_active_date: Mapped[date | None] = mapped_column(Date)
 
     user: Mapped[User] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Theory / YHQ Handbook (docs/spec/14) — sections, articles (immutable versions),
+# structured content blocks, rule/question links, progress, favorites.
+# Reuses: Rule/RuleTranslation, QuestionMedia, Question, the immutable-version +
+# review lifecycle (VersionStatus), and the i18n translation-table pattern.
+# --------------------------------------------------------------------------- #
+class TheorySection(TimestampMixin, Base):
+    __tablename__ = "theory_sections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    topic: Mapped[Topic | None] = mapped_column(Enum(Topic, native_enum=False, length=48))
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    icon_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    translations: Mapped[list["TheorySectionTranslation"]] = relationship(
+        back_populates="section", cascade="all, delete-orphan"
+    )
+    articles: Mapped[list["TheoryArticle"]] = relationship(
+        back_populates="section", cascade="all, delete-orphan"
+    )
+    icon_media: Mapped["QuestionMedia | None"] = relationship()
+
+
+class TheorySectionTranslation(TimestampMixin, Base):
+    __tablename__ = "theory_section_translations"
+    __table_args__ = (
+        UniqueConstraint("section_id", "language", name="uq_theory_section_translation_lang"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    section_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_sections.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    subtitle: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    section: Mapped[TheorySection] = relationship(back_populates="translations")
+
+
+class TheoryArticle(TimestampMixin, Base):
+    """Stable container + classification; shown content lives in immutable versions."""
+
+    __tablename__ = "theory_articles"
+    __table_args__ = (
+        UniqueConstraint("section_id", "slug", name="uq_theory_article_slug_in_section"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    section_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_sections.id"), nullable=False, index=True
+    )
+    slug: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    kind: Mapped[TheoryArticleKind] = mapped_column(
+        Enum(TheoryArticleKind, native_enum=False, length=32),
+        default=TheoryArticleKind.LESSON,
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "theory_article_versions.id",
+            use_alter=True,
+            name="fk_theory_article_current_version",
+        ),
+        nullable=True,
+    )
+    lifecycle_status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    section: Mapped[TheorySection] = relationship(back_populates="articles")
+    current_version: Mapped["TheoryArticleVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["TheoryArticleVersion"]] = relationship(
+        back_populates="article",
+        foreign_keys="TheoryArticleVersion.article_id",
+        cascade="all, delete-orphan",
+    )
+    question_links: Mapped[list["TheoryArticleQuestionLink"]] = relationship(
+        back_populates="article", cascade="all, delete-orphan"
+    )
+
+
+class TheoryArticleVersion(TimestampMixin, Base):
+    """Immutable once published/used (published_at is not None => locked)."""
+
+    __tablename__ = "theory_article_versions"
+    __table_args__ = (
+        UniqueConstraint("article_id", "version", name="uq_theory_article_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    article_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_articles.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+    hero_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    article: Mapped[TheoryArticle] = relationship(
+        back_populates="versions", foreign_keys=[article_id]
+    )
+    hero_media: Mapped["QuestionMedia | None"] = relationship()
+    translations: Mapped[list["TheoryArticleTranslation"]] = relationship(
+        back_populates="article_version", cascade="all, delete-orphan"
+    )
+    blocks: Mapped[list["TheoryContentBlock"]] = relationship(
+        back_populates="article_version", cascade="all, delete-orphan"
+    )
+    rule_links: Mapped[list["TheoryArticleRule"]] = relationship(
+        back_populates="article_version", cascade="all, delete-orphan"
+    )
+
+
+class TheoryArticleTranslation(TimestampMixin, Base):
+    __tablename__ = "theory_article_translations"
+    __table_args__ = (
+        UniqueConstraint(
+            "article_version_id", "language", name="uq_theory_article_translation_lang"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    article_version_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_article_versions.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    article_version: Mapped[TheoryArticleVersion] = relationship(back_populates="translations")
+
+
+class TheoryContentBlock(TimestampMixin, Base):
+    """Ordered structured block (no raw HTML). data_json holds structured payloads
+    (table cells, comparison pairs); human text lives in the translation."""
+
+    __tablename__ = "theory_content_blocks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    article_version_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_article_versions.id"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    type: Mapped[TheoryBlockType] = mapped_column(
+        Enum(TheoryBlockType, native_enum=False, length=32), nullable=False
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    rule_id: Mapped[str | None] = mapped_column(ForeignKey("rules.id"))
+    ref_question_id: Mapped[str | None] = mapped_column(ForeignKey("questions.id"))
+    data_json: Mapped[dict | None] = mapped_column(JSON)
+
+    article_version: Mapped[TheoryArticleVersion] = relationship(back_populates="blocks")
+    translations: Mapped[list["TheoryContentBlockTranslation"]] = relationship(
+        back_populates="block", cascade="all, delete-orphan"
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+
+
+class TheoryContentBlockTranslation(TimestampMixin, Base):
+    __tablename__ = "theory_content_block_translations"
+    __table_args__ = (
+        UniqueConstraint("block_id", "language", name="uq_theory_block_translation_lang"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    block_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_content_blocks.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    body: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    block: Mapped[TheoryContentBlock] = relationship(back_populates="translations")
+
+
+class TheoryArticleRule(TimestampMixin, Base):
+    """Article version -> Rule(s), snapshotting the rule_version at authoring time."""
+
+    __tablename__ = "theory_article_rules"
+    __table_args__ = (
+        UniqueConstraint("article_version_id", "rule_id", name="uq_theory_article_rule"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    article_version_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_article_versions.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False, index=True)
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    article_version: Mapped[TheoryArticleVersion] = relationship(back_populates="rule_links")
+    rule: Mapped[Rule] = relationship()
+
+
+class TheoryArticleQuestionLink(TimestampMixin, Base):
+    """Theory -> Practice: which questions drill this article."""
+
+    __tablename__ = "theory_article_question_links"
+    __table_args__ = (
+        UniqueConstraint("article_id", "question_id", name="uq_theory_article_question"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    article_id: Mapped[str] = mapped_column(
+        ForeignKey("theory_articles.id"), nullable=False, index=True
+    )
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("questions.id"), nullable=False, index=True
+    )
+
+    article: Mapped[TheoryArticle] = relationship(back_populates="question_links")
+    question: Mapped[Question] = relationship()
+
+
+class TheoryProgress(TimestampMixin, Base):
+    """Per-user learning progress on a theory target. 'viewed' set on open; 'practised'
+    and 'mastered' are DERIVED server-side from linked-question performance. UNIQUE per
+    (user, target)."""
+
+    __tablename__ = "theory_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "target_type", "target_id", name="uq_theory_progress_target"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    target_type: Mapped[TheoryTargetType] = mapped_column(
+        Enum(TheoryTargetType, native_enum=False, length=16), nullable=False
+    )
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    state: Mapped[TheoryProgressState] = mapped_column(
+        Enum(TheoryProgressState, native_enum=False, length=16),
+        default=TheoryProgressState.VIEWED,
+        nullable=False,
+    )
+
+    user: Mapped[User] = relationship()
+
+
+class TheoryFavorite(TimestampMixin, Base):
+    """Saved sign/rule/lesson/marking/gesture. UNIQUE per (user, target)."""
+
+    __tablename__ = "theory_favorites"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "target_type", "target_id", name="uq_theory_favorite_target"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    target_type: Mapped[TheoryTargetType] = mapped_column(
+        Enum(TheoryTargetType, native_enum=False, length=16), nullable=False
+    )
+    target_id: Mapped[str] = mapped_column(String(36), nullable=False)
+
+    user: Mapped[User] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Catalogue entities (docs/spec/15) — structured, searchable, versioned, and
+# linked to Rule(s). Each: base identity + immutable version + translation + rule
+# link (and, for signs, a question link driving 'Mashq qilish').
+# --------------------------------------------------------------------------- #
+class RoadSign(TimestampMixin, Base):
+    __tablename__ = "road_signs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    official_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    family: Mapped[RoadSignFamily] = mapped_column(
+        Enum(RoadSignFamily, native_enum=False, length=32), nullable=False, index=True
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("road_sign_versions.id", use_alter=True, name="fk_road_sign_current_version"),
+        nullable=True,
+    )
+    lifecycle_status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    current_version: Mapped["RoadSignVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["RoadSignVersion"]] = relationship(
+        back_populates="road_sign",
+        foreign_keys="RoadSignVersion.road_sign_id",
+        cascade="all, delete-orphan",
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+    question_links: Mapped[list["RoadSignQuestionLink"]] = relationship(
+        back_populates="road_sign", cascade="all, delete-orphan"
+    )
+
+
+class RoadSignVersion(TimestampMixin, Base):
+    __tablename__ = "road_sign_versions"
+    __table_args__ = (UniqueConstraint("road_sign_id", "version", name="uq_road_sign_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_sign_id: Mapped[str] = mapped_column(
+        ForeignKey("road_signs.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    road_sign: Mapped[RoadSign] = relationship(
+        back_populates="versions", foreign_keys=[road_sign_id]
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+    translations: Mapped[list["RoadSignTranslation"]] = relationship(
+        back_populates="road_sign_version", cascade="all, delete-orphan"
+    )
+    rule_links: Mapped[list["RoadSignRule"]] = relationship(
+        back_populates="road_sign_version", cascade="all, delete-orphan"
+    )
+
+
+class RoadSignTranslation(TimestampMixin, Base):
+    __tablename__ = "road_sign_translations"
+    __table_args__ = (
+        UniqueConstraint("road_sign_version_id", "language", name="uq_road_sign_translation_lang"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_sign_version_id: Mapped[str] = mapped_column(
+        ForeignKey("road_sign_versions.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    meaning: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    driver_action: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    important: Mapped[str | None] = mapped_column(Text)
+    exam_trap: Mapped[str | None] = mapped_column(Text)
+    memory_tip: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[str | None] = mapped_column(Text)
+
+    road_sign_version: Mapped[RoadSignVersion] = relationship(back_populates="translations")
+
+
+class RoadSignRule(TimestampMixin, Base):
+    __tablename__ = "road_sign_rules"
+    __table_args__ = (
+        UniqueConstraint("road_sign_version_id", "rule_id", name="uq_road_sign_rule"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_sign_version_id: Mapped[str] = mapped_column(
+        ForeignKey("road_sign_versions.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False, index=True)
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    road_sign_version: Mapped[RoadSignVersion] = relationship(back_populates="rule_links")
+    rule: Mapped[Rule] = relationship()
+
+
+class RoadSignQuestionLink(TimestampMixin, Base):
+    __tablename__ = "road_sign_question_links"
+    __table_args__ = (
+        UniqueConstraint("road_sign_id", "question_id", name="uq_road_sign_question"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_sign_id: Mapped[str] = mapped_column(
+        ForeignKey("road_signs.id"), nullable=False, index=True
+    )
+    question_id: Mapped[str] = mapped_column(
+        ForeignKey("questions.id"), nullable=False, index=True
+    )
+
+    road_sign: Mapped[RoadSign] = relationship(back_populates="question_links")
+    question: Mapped[Question] = relationship()
+
+
+class RoadMarking(TimestampMixin, Base):
+    __tablename__ = "road_markings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    code: Mapped[str | None] = mapped_column(String(32), index=True)
+    marking_group: Mapped[RoadMarkingGroup] = mapped_column(
+        Enum(RoadMarkingGroup, native_enum=False, length=16), nullable=False, index=True
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "road_marking_versions.id", use_alter=True, name="fk_road_marking_current_version"
+        ),
+        nullable=True,
+    )
+    lifecycle_status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    current_version: Mapped["RoadMarkingVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["RoadMarkingVersion"]] = relationship(
+        back_populates="road_marking",
+        foreign_keys="RoadMarkingVersion.road_marking_id",
+        cascade="all, delete-orphan",
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+
+
+class RoadMarkingVersion(TimestampMixin, Base):
+    __tablename__ = "road_marking_versions"
+    __table_args__ = (
+        UniqueConstraint("road_marking_id", "version", name="uq_road_marking_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_marking_id: Mapped[str] = mapped_column(
+        ForeignKey("road_markings.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    road_marking: Mapped[RoadMarking] = relationship(
+        back_populates="versions", foreign_keys=[road_marking_id]
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+    translations: Mapped[list["RoadMarkingTranslation"]] = relationship(
+        back_populates="road_marking_version", cascade="all, delete-orphan"
+    )
+    rule_links: Mapped[list["RoadMarkingRule"]] = relationship(
+        back_populates="road_marking_version", cascade="all, delete-orphan"
+    )
+
+
+class RoadMarkingTranslation(TimestampMixin, Base):
+    __tablename__ = "road_marking_translations"
+    __table_args__ = (
+        UniqueConstraint(
+            "road_marking_version_id", "language", name="uq_road_marking_translation_lang"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_marking_version_id: Mapped[str] = mapped_column(
+        ForeignKey("road_marking_versions.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    meaning: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    can_cross: Mapped[str | None] = mapped_column(Text)
+    can_stop_park: Mapped[str | None] = mapped_column(Text)
+    conflict_rule: Mapped[str | None] = mapped_column(Text)
+    exam_trap: Mapped[str | None] = mapped_column(Text)
+    memory_tip: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[str | None] = mapped_column(Text)
+
+    road_marking_version: Mapped[RoadMarkingVersion] = relationship(back_populates="translations")
+
+
+class RoadMarkingRule(TimestampMixin, Base):
+    __tablename__ = "road_marking_rules"
+    __table_args__ = (
+        UniqueConstraint("road_marking_version_id", "rule_id", name="uq_road_marking_rule"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    road_marking_version_id: Mapped[str] = mapped_column(
+        ForeignKey("road_marking_versions.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False, index=True)
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    road_marking_version: Mapped[RoadMarkingVersion] = relationship(back_populates="rule_links")
+    rule: Mapped[Rule] = relationship()
+
+
+class ControllerGesture(TimestampMixin, Base):
+    __tablename__ = "controller_gestures"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    code: Mapped[str | None] = mapped_column(String(32), index=True)
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    animation_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "controller_gesture_versions.id",
+            use_alter=True,
+            name="fk_controller_gesture_current_version",
+        ),
+        nullable=True,
+    )
+    lifecycle_status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    current_version: Mapped["ControllerGestureVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["ControllerGestureVersion"]] = relationship(
+        back_populates="gesture",
+        foreign_keys="ControllerGestureVersion.gesture_id",
+        cascade="all, delete-orphan",
+    )
+    media: Mapped["QuestionMedia | None"] = relationship(foreign_keys=[media_id])
+    animation_media: Mapped["QuestionMedia | None"] = relationship(
+        foreign_keys=[animation_media_id]
+    )
+
+
+class ControllerGestureVersion(TimestampMixin, Base):
+    __tablename__ = "controller_gesture_versions"
+    __table_args__ = (
+        UniqueConstraint("gesture_id", "version", name="uq_controller_gesture_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    gesture_id: Mapped[str] = mapped_column(
+        ForeignKey("controller_gestures.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    animation_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    gesture: Mapped[ControllerGesture] = relationship(
+        back_populates="versions", foreign_keys=[gesture_id]
+    )
+    media: Mapped["QuestionMedia | None"] = relationship(foreign_keys=[media_id])
+    animation_media: Mapped["QuestionMedia | None"] = relationship(
+        foreign_keys=[animation_media_id]
+    )
+    translations: Mapped[list["ControllerGestureTranslation"]] = relationship(
+        back_populates="gesture_version", cascade="all, delete-orphan"
+    )
+    rule_links: Mapped[list["ControllerGestureRule"]] = relationship(
+        back_populates="gesture_version", cascade="all, delete-orphan"
+    )
+
+
+class ControllerGestureTranslation(TimestampMixin, Base):
+    __tablename__ = "controller_gesture_translations"
+    __table_args__ = (
+        UniqueConstraint(
+            "gesture_version_id", "language", name="uq_controller_gesture_translation_lang"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    gesture_version_id: Mapped[str] = mapped_column(
+        ForeignKey("controller_gesture_versions.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    position_desc: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    allowed: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    forbidden: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    memory_tip: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[str | None] = mapped_column(Text)
+
+    gesture_version: Mapped[ControllerGestureVersion] = relationship(back_populates="translations")
+
+
+class ControllerGestureRule(TimestampMixin, Base):
+    __tablename__ = "controller_gesture_rules"
+    __table_args__ = (
+        UniqueConstraint("gesture_version_id", "rule_id", name="uq_controller_gesture_rule"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    gesture_version_id: Mapped[str] = mapped_column(
+        ForeignKey("controller_gesture_versions.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False, index=True)
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    gesture_version: Mapped[ControllerGestureVersion] = relationship(back_populates="rule_links")
+    rule: Mapped[Rule] = relationship()
+
+
+class TrafficLightState(TimestampMixin, Base):
+    __tablename__ = "traffic_light_states"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    kind: Mapped[TrafficLightKind] = mapped_column(
+        Enum(TrafficLightKind, native_enum=False, length=32), nullable=False, index=True
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "traffic_light_state_versions.id",
+            use_alter=True,
+            name="fk_traffic_light_current_version",
+        ),
+        nullable=True,
+    )
+    lifecycle_status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+
+    current_version: Mapped["TrafficLightStateVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["TrafficLightStateVersion"]] = relationship(
+        back_populates="light",
+        foreign_keys="TrafficLightStateVersion.light_id",
+        cascade="all, delete-orphan",
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+
+
+class TrafficLightStateVersion(TimestampMixin, Base):
+    __tablename__ = "traffic_light_state_versions"
+    __table_args__ = (
+        UniqueConstraint("light_id", "version", name="uq_traffic_light_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    light_id: Mapped[str] = mapped_column(
+        ForeignKey("traffic_light_states.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[VersionStatus] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT,
+        nullable=False,
+    )
+    media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    light: Mapped[TrafficLightState] = relationship(
+        back_populates="versions", foreign_keys=[light_id]
+    )
+    media: Mapped["QuestionMedia | None"] = relationship()
+    translations: Mapped[list["TrafficLightStateTranslation"]] = relationship(
+        back_populates="light_version", cascade="all, delete-orphan"
+    )
+    rule_links: Mapped[list["TrafficLightStateRule"]] = relationship(
+        back_populates="light_version", cascade="all, delete-orphan"
+    )
+
+
+class TrafficLightStateTranslation(TimestampMixin, Base):
+    __tablename__ = "traffic_light_state_translations"
+    __table_args__ = (
+        UniqueConstraint(
+            "light_version_id", "language", name="uq_traffic_light_translation_lang"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    light_version_id: Mapped[str] = mapped_column(
+        ForeignKey("traffic_light_state_versions.id"), nullable=False, index=True
+    )
+    language: Mapped[Language] = mapped_column(
+        Enum(Language, native_enum=False, length=8), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    meaning: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    movement_permitted: Mapped[str | None] = mapped_column(Text)
+    direction_permitted: Mapped[str | None] = mapped_column(Text)
+    exceptions: Mapped[str | None] = mapped_column(Text)
+    typical_exam_situation: Mapped[str | None] = mapped_column(Text)
+    keywords: Mapped[str | None] = mapped_column(Text)
+
+    light_version: Mapped[TrafficLightStateVersion] = relationship(back_populates="translations")
+
+
+class TrafficLightStateRule(TimestampMixin, Base):
+    __tablename__ = "traffic_light_state_rules"
+    __table_args__ = (
+        UniqueConstraint("light_version_id", "rule_id", name="uq_traffic_light_rule"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    light_version_id: Mapped[str] = mapped_column(
+        ForeignKey("traffic_light_state_versions.id"), nullable=False, index=True
+    )
+    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False, index=True)
+    rule_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    light_version: Mapped[TrafficLightStateVersion] = relationship(back_populates="rule_links")
+    rule: Mapped[Rule] = relationship()

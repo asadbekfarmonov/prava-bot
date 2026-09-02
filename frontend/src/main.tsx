@@ -5,6 +5,7 @@ import { api } from "./api";
 import { getTelegramInitData, readyTelegram } from "./telegram";
 import { t } from "./i18n/uz";
 import { AdminArea } from "./admin";
+import { TheoryArea } from "./theory";
 import type {
   AnswerResult,
   DashboardOut,
@@ -488,7 +489,7 @@ function ExamMode({ onExit }: { onExit: () => void }) {
   );
 }
 
-type Screen = "home" | "practice" | "mock" | "admin" | "progress" | "mistakes" | "signs" | "ranking";
+type Screen = "home" | "practice" | "mock" | "admin" | "progress" | "mistakes" | "signs" | "ranking" | "theory";
 
 function readinessClass(state: string): string {
   if (state === "ready_estimate") return "pass";
@@ -675,6 +676,8 @@ function Home({ onPick, user }: { onPick: (s: Screen) => void; user: UserOut }) 
       <p className="muted">{t("tagline")}</p>
       <button onClick={() => onPick("practice")}>{t("practiceMode")}</button>
       <div style={{ height: 8 }} />
+      <button onClick={() => onPick("theory")}>{t("theory")}</button>
+      <div style={{ height: 8 }} />
       <button onClick={() => onPick("mock")}>{t("startMock")}</button>
       <div style={{ height: 8 }} />
       <button className="secondary" onClick={() => onPick("progress")}>{t("progress")}</button>
@@ -710,6 +713,7 @@ function App() {
   if (!user) return <Login onLogin={(u) => { setUser(u); setOnboarded(u.onboarding_completed); }} />;
   if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />;
   if (screen === "practice") return <Practice onExit={() => setScreen("home")} />;
+  if (screen === "theory") return <TheoryArea onExit={() => setScreen("home")} />;
   if (screen === "mock") return <ExamMode onExit={() => setScreen("home")} />;
   if (screen === "admin") return <AdminArea role={user.admin_role} onExit={() => setScreen("home")} />;
   if (screen === "progress")

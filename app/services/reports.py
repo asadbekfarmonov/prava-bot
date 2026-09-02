@@ -37,10 +37,43 @@ def create_report(
     return report
 
 
+def create_theory_report(
+    db: Session, user: User, *, target_type: str, target_id: str, reason: str, note: str | None
+) -> ContentReport:
+    """Theory-content report (docs/spec/14) keyed by target_type + target_id. Reuses the
+    same ContentReport queue (question_version_id stays NULL for theory reports)."""
+    from app.domain.enums import TheoryTargetType
+
+    try:
+        tt = TheoryTargetType(target_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Noma'lum nishon turi") from exc
+    try:
+        reason_enum = ReportReason(reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Noto'g'ri sabab") from exc
+
+    report = ContentReport(
+        user_id=user.id,
+        question_version_id=None,
+        theory_target_type=tt.value,
+        theory_target_id=target_id,
+        reason=reason_enum,
+        note=note,
+        status=ReportStatus.OPEN,
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
 def _report_out(report: ContentReport) -> dict:
     return {
         "id": report.id,
         "question_version_id": report.question_version_id,
+        "theory_target_type": report.theory_target_type,
+        "theory_target_id": report.theory_target_id,
         "reason": report.reason.value,
         "note": report.note,
         "status": report.status.value,

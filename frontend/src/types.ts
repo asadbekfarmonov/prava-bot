@@ -307,3 +307,123 @@ export interface RankingOut {
   entries: RankingRow[];
   own: RankingRow;
 }
+
+// ---- Theory / YHQ Handbook (docs/spec/14, 15) ----
+export interface TheorySectionCard {
+  id: string;
+  slug: string;
+  topic: string | null;
+  icon_url: string | null;
+  title: string;
+  subtitle: string;
+  article_count: number;
+  progress?: { viewed: number; total: number };
+}
+
+export interface TheoryArticleCard {
+  id: string;
+  slug: string;
+  kind: string;
+  title: string;
+  summary: string;
+  progress_state?: string;
+}
+
+export interface TheoryRule {
+  code: string;
+  title: string | null;
+  text: string;
+  source_url: string;
+  status: string;
+  rule_version: number;
+}
+
+export interface TheoryBlock {
+  id: string;
+  type: string;
+  position: number;
+  body: string;
+  data: Record<string, unknown> | null;
+  media_url: string | null;
+  rule?: TheoryRule;
+  ref_question_id?: string;
+}
+
+export interface TheoryArticle {
+  id: string;
+  slug: string;
+  kind: string;
+  section_id: string;
+  version: number;
+  hero_url: string | null;
+  title: string;
+  summary: string;
+  blocks: TheoryBlock[];
+  rules: TheoryRule[];
+  linked_question_count: number;
+  progress_state?: string;
+}
+
+export interface TheorySection extends TheorySectionCard {
+  articles: TheoryArticleCard[];
+}
+
+export interface SignCard {
+  id: string;
+  code: string;
+  family: string;
+  name: string;
+  media_url: string | null;
+}
+
+export interface SignDetail extends SignCard {
+  meaning: string;
+  driver_action: string;
+  important: string | null;
+  exam_trap: string | null;
+  memory_tip: string | null;
+  rules: TheoryRule[];
+  linked_question_count: number;
+  progress_state?: string;
+}
+
+export interface MarkingCard { id: string; code: string | null; group: string; name: string; media_url: string | null; }
+export interface MarkingDetail extends MarkingCard {
+  meaning: string; can_cross: string | null; can_stop_park: string | null;
+  conflict_rule: string | null; exam_trap: string | null; memory_tip: string | null; rules: TheoryRule[];
+}
+export interface GestureCard { id: string; code: string | null; name: string; media_url: string | null; animation_url: string | null; }
+export interface GestureDetail extends GestureCard {
+  position_desc: string; allowed: string; forbidden: string; memory_tip: string | null; rules: TheoryRule[];
+}
+export interface LightCard { id: string; kind: string; title: string; media_url: string | null; }
+export interface LightDetail extends LightCard {
+  meaning: string; movement_permitted: string | null; direction_permitted: string | null;
+  exceptions: string | null; typical_exam_situation: string | null; rules: TheoryRule[];
+}
+
+export interface SearchResult {
+  type: "section" | "article" | "sign" | "marking" | "gesture" | "light" | "rule";
+  id: string;
+  slug?: string;
+  code?: string;
+  family?: string;
+  title: string;
+  subtitle: string;
+}
+
+export interface FavoriteItem {
+  id: string;
+  target_type: string;
+  target_id: string;
+  created_at: string | null;
+}
+
+export interface TheoryPracticeStart {
+  session_id: string;
+  source: string;
+  target_type: string;
+  target_id: string;
+  questions_total: number;
+  questions: NextQuestion[];
+}

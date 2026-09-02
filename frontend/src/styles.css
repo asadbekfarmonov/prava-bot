@@ -70,3 +70,32 @@ button.marked { background: #c98a12; color: #fff; }
 .ranking-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
 .ranking-table td:last-child { text-align: right; font-weight: 600; }
 .ranking-table .own-row { background: rgba(80,160,255,0.18); border-radius: 6px; }
+
+/* ---- Theory / Nazariya (docs/spec/14): friendly, visual, DISTINCT from exam mode ---- */
+.theory-wrap { display: flex; flex-direction: column; }
+.card.theory { background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%); border: 1px solid #e0ebfb; border-radius: 18px; }
+.card.theory h1 { color: #17406b; }
+.theory-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.theory-tabs button { padding: 8px 12px; border-radius: 999px; font-size: 14px; }
+.theory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+.theory-tile { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; background: #fff; color: #1b2733; border: 1px solid #e0ebfb; border-radius: 14px; padding: 12px; }
+.theory-tile.sign { align-items: center; text-align: center; }
+.theory-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.theory-sign-img { width: 72px; height: 72px; object-fit: contain; }
+.theory-sign-ph { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; background: #eef4ff; border-radius: 10px; color: #17406b; font-weight: 700; }
+.theory-media { max-width: 100%; border-radius: 12px; margin: 8px 0; }
+.theory-figure { margin: 8px 0; }
+.theory-text { line-height: 1.55; }
+.theory-blocks > * { margin-bottom: 10px; }
+.theory-callout { border-radius: 12px; padding: 10px 12px; }
+.theory-callout.warn { background: #fff4e5; border: 1px solid #ffd699; }
+.theory-callout.tip { background: #e9f9f0; border: 1px solid #b7e6cb; }
+.theory-callout.example { background: #eef4ff; border: 1px solid #cfe0fb; }
+.theory-table { width: 100%; border-collapse: collapse; }
+.theory-table th, .theory-table td { border: 1px solid #d0d7e2; padding: 6px 8px; text-align: left; }
+.theory-compare-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #e0ebfb; }
+.theory-badge { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: #17406b; color: #fff; border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
+.theory-search-results { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.theory-result { text-align: left; }
+.theory-fav { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #e0ebfb; }
+.theory-rule { background: #eef4ff; border-radius: 10px; padding: 8px 12px; }

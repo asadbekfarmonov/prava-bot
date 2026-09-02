@@ -101,6 +101,44 @@ export const api = {
   mistakes: () => request<{ mistakes: MistakeItem[] }>("/api/practice/mistakes")
 };
 
+export const theoryApi = {
+  sections: () => request<{ sections: import("./types").TheorySectionCard[] }>("/api/theory/sections"),
+  section: (slug: string) => request<import("./types").TheorySection>(`/api/theory/sections/${encodeURIComponent(slug)}`),
+  article: (slug: string) => request<import("./types").TheoryArticle>(`/api/theory/articles/${encodeURIComponent(slug)}`),
+  search: (q: string) =>
+    request<{ results: import("./types").SearchResult[] }>(`/api/theory/search?q=${encodeURIComponent(q)}`),
+  signs: (family?: string) =>
+    request<{ signs: import("./types").SignCard[] }>(`/api/theory/signs${family ? `?family=${family}` : ""}`),
+  sign: (code: string) => request<import("./types").SignDetail>(`/api/theory/signs/${encodeURIComponent(code)}`),
+  markings: () => request<{ markings: import("./types").MarkingCard[] }>("/api/theory/markings"),
+  marking: (id: string) => request<import("./types").MarkingDetail>(`/api/theory/markings/${id}`),
+  gestures: () => request<{ gestures: import("./types").GestureCard[] }>("/api/theory/gestures"),
+  gesture: (id: string) => request<import("./types").GestureDetail>(`/api/theory/gestures/${id}`),
+  lights: () => request<{ lights: import("./types").LightCard[] }>("/api/theory/lights"),
+  light: (id: string) => request<import("./types").LightDetail>(`/api/theory/lights/${id}`),
+  byRule: (code: string) => request<{ rule: import("./types").TheoryRule; articles: import("./types").TheoryArticleCard[]; signs: import("./types").SignCard[] }>(`/api/theory/by-rule/${encodeURIComponent(code)}`),
+  markProgress: (targetType: string, targetId: string) =>
+    request<{ state: string }>("/api/theory/progress", {
+      method: "POST",
+      body: JSON.stringify({ target_type: targetType, target_id: targetId })
+    }),
+  favorites: () => request<{ favorites: import("./types").FavoriteItem[] }>("/api/theory/favorites"),
+  addFavorite: (targetType: string, targetId: string) =>
+    request<{ id: string }>("/api/theory/favorites", {
+      method: "POST",
+      body: JSON.stringify({ target_type: targetType, target_id: targetId })
+    }),
+  removeFavorite: (id: string) =>
+    fetch(`/api/theory/favorites/${id}`, { method: "DELETE", credentials: "include" }).then((r) => {
+      if (!r.ok && r.status !== 204) throw new Error("delete failed");
+    }),
+  startPractice: (targetType: "article" | "sign", targetId: string) =>
+    request<import("./types").TheoryPracticeStart>("/api/theory/practice/start", {
+      method: "POST",
+      body: JSON.stringify({ target_type: targetType, target_id: targetId })
+    })
+};
+
 export const adminApi = {
   overview: () => request<import("./types").AdminOverview>("/api/admin/overview"),
   listQuestions: (params: Record<string, string> = {}) => {
