@@ -36,6 +36,8 @@ Exam facts come from
 | [13-deployment.md](13-deployment.md) | Railway production: single service, Postgres, Storage Bucket, webhook, /health, migrations, env |
 | [14-theory-handbook.md](14-theory-handbook.md) | Theory/YHQ Handbook: sections, articles, content blocks, progress, favorites, search, admin, versioning, Theory↔Practice |
 | [15-road-sign-catalogue.md](15-road-sign-catalogue.md) | Structured road-sign / marking / controller-gesture / traffic-light catalogues + search/filter |
+| [16-frontend-redesign.md](16-frontend-redesign.md) | Full Mini App redesign: audit, bottom-nav, design tokens/system, all screens, states, Telegram UX, mock mode, a11y, plan |
+| [17-product-expansion.md](17-product-expansion.md) | Competitor-density feature matrix + per-feature analysis + roadmap (Core / v1.1 / v2) |
 
 ## Locked v1 decisions
 
