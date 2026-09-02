@@ -34,6 +34,8 @@ Exam facts come from
 | [11-content-acquisition.md](11-content-acquisition.md) | Official sources, existing products, partnership terms, original-content pipeline + asset system |
 | [12-ui-exam-mode.md](12-ui-exam-mode.md) | Exam-focused UI; verified vs approximation; animation semantics |
 | [13-deployment.md](13-deployment.md) | Railway production: single service, Postgres, Storage Bucket, webhook, /health, migrations, env |
+| [14-theory-handbook.md](14-theory-handbook.md) | Theory/YHQ Handbook: sections, articles, content blocks, progress, favorites, search, admin, versioning, Theory↔Practice |
+| [15-road-sign-catalogue.md](15-road-sign-catalogue.md) | Structured road-sign / marking / controller-gesture / traffic-light catalogues + search/filter |
 
 ## Locked v1 decisions
 
