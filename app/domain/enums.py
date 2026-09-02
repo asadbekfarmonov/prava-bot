@@ -1,5 +1,26 @@
 from enum import StrEnum
 
+# --------------------------------------------------------------------------- #
+# Carried follow-up (Slice 5): enum ``values_callable`` — DELIBERATELY SKIPPED.
+#
+# These are StrEnums whose ``.value`` is the lowercase form the spec documents
+# (e.g. MockStatus.IN_PROGRESS.value == "in_progress"). SQLAlchemy's non-native
+# ``Enum`` columns in app/domain/models.py currently persist by member *name*
+# (verified: a MockAttempt.status row stores "IN_PROGRESS", not "in_progress").
+#
+# Switching those columns to ``values_callable=lambda e: [m.value for m in e]``
+# would change the on-disk representation for ~15 enum columns across every table.
+# Migrations 0001-0004 and all existing rows/fixtures were written with the *name*
+# form, so the change would require a data migration (UPDATE every enum column) and
+# would silently break reads of any already-persisted data — high risk, broad blast
+# radius, for a Slice-5 (production wiring) change.
+#
+# There is no user-facing correctness gap: the API already emits the lowercase
+# ``.value`` at the boundary (e.g. mock._attempt_meta returns ``status.value``), and
+# comparisons use the Python enum objects, not the stored string. Per the task's
+# explicit allowance, this follow-up is skipped and documented rather than applied.
+# --------------------------------------------------------------------------- #
+
 
 class Category(StrEnum):
     """Driving-licence category. v1 ships B only; the rest are reserved."""

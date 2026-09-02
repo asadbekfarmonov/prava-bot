@@ -4,5 +4,20 @@
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE"
-  }
+  },
+  "_comment_cron": "Railway Cron jobs are configured on separate Cron services in the Railway dashboard (schedule + command). Both are cleanup/backstop only; correctness stays request-time authoritative (docs/spec/13).",
+  "_cron_jobs": [
+    {
+      "name": "expired-mock-sweep",
+      "schedule": "*/15 * * * *",
+      "command": "python -m app.jobs.expired_mock_sweep",
+      "purpose": "Finalize in_progress MockAttempts whose deadline passed and were never reopened (every 15 min)."
+    },
+    {
+      "name": "orphan-media-cleanup",
+      "schedule": "0 3 * * *",
+      "command": "python -m app.jobs.orphan_media_cleanup",
+      "purpose": "Delete QuestionMedia rows + storage objects unreferenced by any version, after a 30-day grace period (daily)."
+    }
+  ]
 }
