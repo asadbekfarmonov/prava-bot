@@ -19,7 +19,9 @@ from sqlalchemy import func, select
 from app.domain.enums import AdminRole
 from app.domain.models import TheorySection, User
 from app.observability.logging import configure_logging, log_event
+from app.scripts.seed_demo_with_images import _fetch_image_bytes
 from app.services import theory_admin
+from app.services.media import ingest_upload
 from app.storage.db import session_scope
 
 SEED_AUTHOR_TELEGRAM_ID = "0"
@@ -167,21 +169,39 @@ def run() -> dict:
         )
         _publish_article(db, author, fa_v)
 
-        # --- Demo signs across families ---
+        # --- Signs across families WITH real sign images (demo content, NOT official).
+        # Images are fetched via the shared helper (verified Wikimedia signs, picsum/Pillow
+        # fallback) and stored through the real media pipeline; codes are demo placeholders. ---
         sign_specs = [
-            ("DEMO-W1", "warning", "DEMO ogohlantiruvchi belgi"),
-            ("DEMO-P1", "prohibitory", "DEMO taqiqlovchi belgi"),
-            ("DEMO-M1", "mandatory", "DEMO buyuruvchi belgi"),
-            ("DEMO-PR1", "priority", "DEMO imtiyoz belgisi"),
+            ("demo-sign-stop", "DEMO-STOP", "priority", "To'xtang (STOP)",
+             "Bekatda to'liq to'xtash va boshqa harakatga yo'l berish talab qilinadi.",
+             "To'xtash chizig'i oldida to'liq to'xtang."),
+            ("demo-sign-noentry", "DEMO-NOENTRY", "prohibitory", "Kirish taqiqlangan",
+             "Ushbu yo'nalishda harakatlanish taqiqlanadi.", "Bu yo'lga kirmang."),
+            ("demo-sign-pedestrian", "DEMO-PED", "information", "Piyodalar o'tish joyi",
+             "Oldinda piyodalar o'tish joyi bor.", "Sekinlashing va piyodalarga yo'l bering."),
+            ("demo-sign-speed50", "DEMO-SPEED50", "prohibitory", "Eng katta tezlik 50",
+             "Ruxsat etilgan eng katta tezlik 50 km/soat.", "Tezlikni 50 km/soatdan oshirmang."),
+            ("demo-sign-yield", "DEMO-YIELD", "priority", "Yo'l bering",
+             "Kesishayotgan asosiy harakatga yo'l berish kerak.",
+             "Asosiy yo'ldagi transportga yo'l bering."),
         ]
         sign_ids = []
-        for code, family, name in sign_specs:
-            v = theory_admin.create_sign(db, author, official_code=code, family=family)
+        for slug, code, family, name, meaning, action in sign_specs:
+            raw, _origin = _fetch_image_bytes(slug, name)
+            media = ingest_upload(
+                db, raw=raw, filename=f"{slug}.img", author=author,
+                alt_text_uz=f"{name} — namuna belgi tasviri (rasmiy emas)",
+            )
+            v = theory_admin.create_sign(
+                db, author, official_code=code, family=family, media_id=media.id
+            )
             theory_admin.edit_sign(
                 db, author, v.road_sign_id,
                 theory_admin.SignContentInput(
-                    name=name, meaning=f"{_DEMO_NOTE}", driver_action="DEMO: haydovchi harakati.",
-                    keywords="demo namuna belgi", ai_assisted=True, rule_codes=["YHQ-DEMO:1"],
+                    name=name, meaning=meaning, driver_action=action,
+                    keywords=f"demo {name.lower()} belgi", media_id=media.id,
+                    ai_assisted=True, rule_codes=["YHQ-DEMO:1"],
                 ),
             )
             _publish_sign(db, author, v)
