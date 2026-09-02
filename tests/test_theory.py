@@ -413,7 +413,7 @@ def test_seed_theory_demo_inserts_published_demo_content(client):
     from app.scripts.seed_theory_demo import run
 
     result = run()
-    assert result["sections"] == 3 and result["signs"] == 4
+    assert result["sections"] == 3 and result["signs"] == 5
 
     c = student_client(client)
     sections = c.get("/api/theory/sections").json()["sections"]
