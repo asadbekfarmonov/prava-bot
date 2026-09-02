@@ -1,310 +1,387 @@
 {
 "1.25.2": {
 "family": "warning",
-"file": "UZ road sign 1.25.2.svg"
+"file": "UZ road sign 1.25.2.svg",
+"name": "Pastlab uchuvchi qushlar"
 },
 "1.25.3": {
 "family": "warning",
-"file": "UZ road sign 1.25.3.svg"
+"file": "UZ road sign 1.25.3.svg",
+"name": "Kemiruvchi va sudralib yuruvchi hayvonlar"
 },
 "1.34": {
 "family": "warning",
-"file": "UZ road sign 1.34.svg"
+"file": "UZ road sign 1.34.svg",
+"name": "Diqqat, temir yo‘l kesishmasini to‘suvchi qurilma"
 },
 "1.35": {
 "family": "warning",
-"file": "UZ road sign 1.35.svg"
+"file": "UZ road sign 1.35.svg",
+"name": "Piyodalarning yoʻl yoqasidan yurishi mumkin boʻlgan hudud"
 },
 "2.3.1": {
 "family": "priority",
-"file": "Uzbekistan road sign 2.3.1.png"
+"file": "Uzbekistan road sign 2.3.1.png",
+"name": "Imtiyozli yoʻl bilan kesishma"
 },
 "2.3.2": {
 "family": "priority",
-"file": "Uzbekistan road sign 2.3.2.png"
+"file": "Uzbekistan road sign 2.3.2.png",
+"name": "Oʻngdan tutashuvchi ikkilamchi yoʻl"
 },
 "2.3.3": {
 "family": "priority",
-"file": "Uzbekistan road sign 2.3.3.png"
+"file": "Uzbekistan road sign 2.3.3.png",
+"name": "Chapdan tutashuvchi ikkilamchi yoʻl"
 },
 "3.12": {
 "family": "prohibitory",
-"file": "UZ road sign 3.12.svg"
+"file": "UZ road sign 3.12.svg",
+"name": "Oʻqqa tushadigan ogʻirlik cheklangan"
 },
 "3.16": {
 "family": "prohibitory",
-"file": "UZ road sign 3.16.svg"
+"file": "UZ road sign 3.16.svg",
+"name": "Eng kam oraliq"
 },
 "3.17.1": {
 "family": "prohibitory",
-"file": "UZ road sign 3.17.1 (2022).svg"
+"file": "UZ road sign 3.17.1 (2022).svg",
+"name": "Bojxona"
 },
 "3.17.2": {
 "family": "prohibitory",
-"file": "UZ road sign 3.17.2.svg"
+"file": "UZ road sign 3.17.2.svg",
+"name": "Xavf — harakat taqiqlanadi"
 },
 "3.17.3": {
 "family": "prohibitory",
-"file": "UZ road sign 3.17.3.svg"
+"file": "UZ road sign 3.17.3.svg",
+"name": "Nazorat joyi”. Transport vositalarining tekshirib o‘tkazilishi majburiy bo‘lgan vaqtincha yoki doimiy nazorat punktlarida o‘rnatiladi"
 },
 "5.11.2": {
 "family": "information",
-"file": "UZ road sign 5.11.2.svg"
+"file": "UZ road sign 5.11.2.svg",
+"name": "Qayrilib olish oraligʻi"
 },
 "5.14": {
 "family": "information",
-"file": "UZ road sign 5.14.svg"
+"file": "UZ road sign 5.14.svg",
+"name": "Yo‘nalishsiz taksilar to‘xtab turish joyi"
 },
 "5.15.1": {
 "family": "information",
-"file": "UZ road sign 5.15.1.svg"
+"file": "UZ road sign 5.15.1.svg",
+"name": "Pullik toʻxtab turish joyi"
 },
 "5.15.2": {
 "family": "information",
-"file": "UZ road sign 5.15.2.svg"
+"file": "UZ road sign 5.15.2.svg",
+"name": "Yer usti avtomobil qoʻyish joyi"
 },
 "5.15.3": {
 "family": "information",
-"file": "UZ road sign 5.15.3.svg"
+"file": "UZ road sign 5.15.3.svg",
+"name": "Yer osti avtomobil qoʻyish joyi"
 },
 "5.15.4": {
 "family": "information",
-"file": "UZ road sign 5.15.4.svg"
+"file": "UZ road sign 5.15.4.svg",
+"name": "Elektr quvvatlashli avtomobil qoʻyish joyi"
 },
 "5.19.4": {
 "family": "information",
-"file": "UZ road sign 5.19.4.svg"
+"file": "UZ road sign 5.19.4.svg",
+"name": "Oxiri berk yoʻl"
 },
 "5.20.1": {
 "family": "information",
-"file": "UZ road sign 5.20.1 A.svg"
+"file": "UZ road sign 5.20.1 A.svg",
+"name": "Yoʻnalishlarning dastlabki koʻrsatkichi"
 },
 "5.20.2": {
 "family": "information",
-"file": "UZ road sign 5.20.2 B.svg"
+"file": "UZ road sign 5.20.2 B.svg",
+"name": "Advance direction indicator"
 },
 "5.20.4": {
 "family": "information",
-"file": "UZ road sign 5.20.4 A.svg"
+"file": "UZ road sign 5.20.4 A.svg",
+"name": "Yoʻllarining bir sathda kesishmaydigan qismlarida burilish yoki qayrilib olish yoʻnalish koʻrsatkichi"
 },
 "5.20.5": {
 "family": "information",
-"file": "UZ road sign 5.20.5.svg"
+"file": "UZ road sign 5.20.5.svg",
+"name": "Xizmat koʻrsatish maydoni"
 },
 "5.21.1": {
 "family": "information",
-"file": "UZ road sign 5.21.1 B.svg"
+"file": "UZ road sign 5.21.1 B.svg",
+"name": "Yoʻnalish koʻrsatkichi"
 },
 "5.21.2": {
 "family": "information",
-"file": "UZ road sign 5.21.2 A.svg"
+"file": "UZ road sign 5.21.2 A.svg",
+"name": "Direction indicator"
 },
 "5.22": {
 "family": "information",
-"file": "UZ road sign 5.22.svg"
+"file": "UZ road sign 5.22.svg",
+"name": "Aholi punktining boshlanishi”. Ushbu Qoidalarning aholi punktlarida harakatlanish tartibini belgilovchi talablariga amal qilinadigan joylarning nomi hamda uning boshlanishini bildiradi"
 },
 "5.23": {
 "family": "information",
-"file": "UZ road sign 5.23.svg"
+"file": "UZ road sign 5.23.svg",
+"name": "Aholi punktining oxiri”. Ushbu Qoidalarning aholi punktlarida harakatlanish tartib-talablari bekor qilingan joyni bildiradi"
 },
 "5.24": {
 "family": "information",
-"file": "UZ road sign 5.24.svg"
+"file": "UZ road sign 5.24.svg",
+"name": "Aholi punktining boshlanishi”. Ushbu Qoidalarning aholi punktlarida harakatlanish tartibini belgilovchi talablariga amal qilinmaydigan joylarning nomi hamda uning boshlanishini bildiradi"
 },
 "5.25": {
 "family": "information",
-"file": "UZ road sign 5.25.svg"
+"file": "UZ road sign 5.25.svg",
+"name": "Aholi punktining oxiri. 5.24 yo‘l belgisi bilan ko‘rsatilgan aholi punktining oxirini bildiradi"
 },
 "5.26": {
 "family": "information",
-"file": "UZ road sign 5.26 B.svg"
+"file": "UZ road sign 5.26 B.svg",
+"name": "Manzil nomi"
 },
 "5.27": {
 "family": "information",
-"file": "UZ road sign 5.27.svg"
+"file": "UZ road sign 5.27.svg",
+"name": "Masofalar ko‘rsatkichi"
 },
 "5.31": {
 "family": "information",
-"file": "UZ road sign 5.31.svg"
+"file": "UZ road sign 5.31.svg",
+"name": "Aylanib oʻtish tasviri"
 },
 "5.32.1": {
 "family": "information",
-"file": "UZ road sign 5.32.1.svg"
+"file": "UZ road sign 5.32.1.svg",
+"name": "Chetlab oʻtish yoʻnalishi"
 },
 "5.32.2": {
 "family": "information",
-"file": "UZ road sign 5.32.2.svg"
+"file": "UZ road sign 5.32.2.svg",
+"name": "Chetlab oʻtish yoʻnalishi"
 },
 "5.32.3": {
 "family": "information",
-"file": "UZ road sign 5.32.3.svg"
+"file": "UZ road sign 5.32.3.svg",
+"name": "Chetlab oʻtish yoʻnalishi"
 },
 "5.40": {
 "family": "information",
-"file": "5.40 Uzbekistan road sign.svg"
+"file": "5.40 Uzbekistan road sign.svg",
+"name": "Falokatli holatlar uchun kirish yo‘li"
 },
 "5.41": {
 "family": "information",
-"file": "UZ road sign 5.41.svg"
+"file": "UZ road sign 5.41.svg",
+"name": "5.42 Фотобейнетіркеу"
 },
 "5.42": {
 "family": "information",
-"file": "UZ road sign 5.42.svg"
+"file": "UZ road sign 5.42.svg",
+"name": "Qizil chiroqda o‘ngga harakatlanish"
 },
 "5.43": {
 "family": "information",
-"file": "UZ road sign 5.43.svg"
+"file": "UZ road sign 5.43.svg",
+"name": "Radar — tezlik nazorati"
 },
 "5.46": {
 "family": "information",
-"file": "UZ road sign 5.46.svg"
+"file": "UZ road sign 5.46.svg",
+"name": "Maktab"
 },
 "5.47": {
 "family": "information",
-"file": "UZ road sign 5.47.svg"
+"file": "UZ road sign 5.47.svg",
+"name": "Turizm obyektlari yoʻnalish koʻrsatgichi"
 },
 "5.47.1": {
 "family": "information",
-"file": "UZ road sign 5.47.1.svg"
+"file": "UZ road sign 5.47.1.svg",
+"name": "Tourist attractions"
 },
 "5.47.2": {
 "family": "information",
-"file": "UZ road sign 5.47.2.svg"
+"file": "UZ road sign 5.47.2.svg",
+"name": "Tourism Information Centre"
 },
 "6.12": {
 "family": "information",
-"file": "UZ road sign 6.12.svg"
+"file": "UZ road sign 6.12.svg",
+"name": "YPX maskani"
 },
 "6.13": {
 "family": "information",
-"file": "6.13 Uzbekistan road sign.svg"
+"file": "6.13 Uzbekistan road sign.svg",
+"name": "Xalqaro avtotashuvchilarning nazorat punkti"
 },
 "6.15": {
 "family": "information",
-"file": "6.15 Uzbekistan road sign.svg"
+"file": "6.15 Uzbekistan road sign.svg",
+"name": "Chiqindi yig‘ish joyi"
 },
 "6.17": {
 "family": "information",
-"file": "UZ road sign 6.17.svg"
+"file": "UZ road sign 6.17.svg",
+"name": "Ichki ishlar boʻlimi"
 },
 "6.18": {
 "family": "information",
-"file": "UZ road sign 6.18.svg"
+"file": "UZ road sign 6.18.svg",
+"name": "Radio aloqasi"
 },
 "6.19": {
 "family": "information",
-"file": "UZ road sign 6.19.svg"
+"file": "UZ road sign 6.19.svg",
+"name": "Jomeʼ masjidi"
 },
 "6.20": {
 "family": "information",
-"file": "UZ road sign 6.20.svg"
+"file": "UZ road sign 6.20.svg",
+"name": "Cherkov"
 },
 "6.21": {
 "family": "information",
-"file": "UZ road sign 6.21.svg"
+"file": "UZ road sign 6.21.svg",
+"name": "Ibodatxona"
 },
 "6.22": {
 "family": "information",
-"file": "UZ road sign 6.22.svg"
+"file": "UZ road sign 6.22.svg",
+"name": "Temir yoʻl vokzali"
 },
 "6.23": {
 "family": "information",
-"file": "UZ road sign 6.23.svg"
+"file": "UZ road sign 6.23.svg",
+"name": "Aeroport"
 },
 "6.24": {
 "family": "information",
-"file": "UZ road sign 6.24.svg"
+"file": "UZ road sign 6.24.svg",
+"name": "Bozor"
 },
 "6.25": {
 "family": "information",
-"file": "UZ road sign 6.25.svg"
+"file": "UZ road sign 6.25.svg",
+"name": "Tourism Information Centre"
 },
 "6.26": {
 "family": "information",
-"file": "UZ road sign 6.26.svg"
+"file": "UZ road sign 6.26.svg",
+"name": "Reserve"
 },
 "6.27": {
 "family": "information",
-"file": "UZ road sign 6.27.svg"
+"file": "UZ road sign 6.27.svg",
+"name": "Picturesque place"
 },
 "6.28": {
 "family": "information",
-"file": "UZ road sign 6.28.svg"
+"file": "UZ road sign 6.28.svg",
+"name": "Meʼmorchilik yodgorligi"
 },
 "6.3.3": {
 "family": "information",
-"file": "UZ road sign 6.3.3.svg"
+"file": "UZ road sign 6.3.3.svg",
+"name": "Elektromobillarni quvvatlash shaxobchasi"
 },
 "7.1.1": {
 "family": "service",
-"file": "7.1.1 Uzbekistan road sign.svg"
+"file": "7.1.1 Uzbekistan road sign.svg",
+"name": "Obyektgacha bo‘lgan masofa"
 },
 "7.1.2": {
 "family": "service",
-"file": "7.1.2 Uzbekistan road sign.svg"
+"file": "7.1.2 Uzbekistan road sign.svg",
+"name": "Obyektgacha bo‘lgan masofa"
 },
 "7.1.3": {
 "family": "service",
-"file": "7.1.3 Uzbekistan road sign.svg"
+"file": "7.1.3 Uzbekistan road sign.svg",
+"name": "Obyektgacha bo‘lgan masofa"
 },
 "7.1.4": {
 "family": "service",
-"file": "7.1.4 Uzbekistan road sign.svg"
+"file": "7.1.4 Uzbekistan road sign.svg",
+"name": "Obyektgacha bo‘lgan masofa"
 },
 "7.11": {
 "family": "service",
-"file": "7.11 Uzbekistan road sign.svg"
+"file": "7.11 Uzbekistan road sign.svg",
+"name": "Ruxsat etilgan to‘la vazni cheklangan"
 },
 "7.2.1": {
 "family": "service",
-"file": "7.2.1 Uzbekistan road sign.svg"
+"file": "7.2.1 Uzbekistan road sign.svg",
+"name": "Ta’sir oralig‘i"
 },
 "7.2.5": {
 "family": "service",
-"file": "7.2.5 Uzbekistan road sign.svg"
+"file": "7.2.5 Uzbekistan road sign.svg",
+"name": "Ta’sir oralig‘i"
 },
 "7.2.6": {
 "family": "service",
-"file": "7.2.6 Uzbekistan road sign.svg"
+"file": "7.2.6 Uzbekistan road sign.svg",
+"name": "Ta’sir oralig‘i"
 },
 "7.20": {
 "family": "service",
-"file": "7.20 Uzbekistan road sign.svg"
+"file": "7.20 Uzbekistan road sign.svg",
+"name": "Xavfli yuk toifasi"
 },
 "7.23": {
 "family": "service",
-"file": "UZ road sign 7.23 C.svg"
+"file": "UZ road sign 7.23 C.svg",
+"name": "Navbat bilan oʻtish"
 },
 "7.24": {
 "family": "service",
-"file": "7.24 Uzbekistan road sign.svg"
+"file": "7.24 Uzbekistan road sign.svg",
+"name": "Transport vositasining davlat raqami"
 },
 "7.25": {
 "family": "service",
-"file": "7.25 Uzbekistan road sign.svg"
+"file": "7.25 Uzbekistan road sign.svg",
+"name": "Faqat xizmat avtomobillari"
 },
 "7.26": {
 "family": "service",
-"file": "7.26 Uzbekistan road sign.svg"
+"file": "7.26 Uzbekistan road sign.svg",
+"name": "Sunʼiy notekislik"
 },
 "7.4.10": {
 "family": "service",
-"file": "7.4.10 Uzbekistan road sign.svg"
+"file": "7.4.10 Uzbekistan road sign.svg",
+"name": "yoʻnalishsiz taksilarga"
 },
 "7.5.3": {
 "family": "service",
-"file": "7.5.3 Uzbekistan road sign.svg"
+"file": "7.5.3 Uzbekistan road sign.svg",
+"name": "Hafta kunlari"
 },
 "7.5.7": {
 "family": "service",
-"file": "7.5.7 Uzbekistan road sign.svg"
+"file": "7.5.7 Uzbekistan road sign.svg",
+"name": "Amal qilish vaqti"
 },
 "7.7": {
 "family": "service",
-"file": "7.7 Uzbekistan road sign.svg"
+"file": "7.7 Uzbekistan road sign.svg",
+"name": "Dvigatelni ishlatmasdan to‘xtab turish joyi"
 },
 "7.9": {
 "family": "service",
-"file": "7.9 Uzbekistan road sign.svg"
+"file": "7.9 Uzbekistan road sign.svg",
+"name": "To‘xtab turish muddati cheklangan"
 }
 }

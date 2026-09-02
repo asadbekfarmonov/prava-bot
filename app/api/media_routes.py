@@ -21,7 +21,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
 from app.api.admin_deps import require_role, resolve_effective_role
@@ -178,15 +177,11 @@ def serve_media(media_id: str, content_hash: str, request: Request, db: DbSessio
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media topilmadi")
 
     storage = get_media_storage()
-    ttl = get_settings().media_presign_ttl_seconds
-    presigned = storage.create_download_url(media.storage_key, ttl=ttl)
-    if presigned:
-        # Real object storage: redirect to a short-lived presigned GET.
-        return RedirectResponse(url=presigned, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
-
+    # Stream bytes through the app (same-origin) so a strict CSP `img-src 'self'` allows
+    # them. (Redirecting to the bucket host would be blocked by CSP and is provider-coupled.)
     try:
         data = storage.get(media.storage_key)
-    except KeyError as exc:
+    except Exception as exc:  # noqa: BLE001 — missing object -> 404 (no existence leak)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media topilmadi") from exc
 
     if published:
