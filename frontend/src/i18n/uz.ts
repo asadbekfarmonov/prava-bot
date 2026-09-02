@@ -71,6 +71,7 @@ export const uz = {
   searchPlaceholder: "Qidirish...",
   sections: "Bo'limlar",
   signs: "Yo'l belgilari",
+  signsCatalogueHint: "77 ta belgi — turkumlar bo'yicha",
   markings: "Yo'l chiziqlari",
   gestures: "Regulirovshchik ishoralari",
   lights: "Svetofor signallari",

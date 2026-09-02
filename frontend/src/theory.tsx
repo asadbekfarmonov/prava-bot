@@ -239,6 +239,7 @@ export function TheoryArea({ onExit }: { onExit: () => void }) {
         <TheoryHome
           onOpenSection={(slug) => setView({ name: "section", slug })}
           onOpenResult={(r) => openResult(r, setView)}
+          onOpenCatalogue={(name) => setView({ name } as View)}
         />
       )}
       {view.name === "section" && (
@@ -270,10 +271,12 @@ function openResult(r: SearchResult, setView: (v: View) => void) {
 
 function TheoryHome({
   onOpenSection,
-  onOpenResult
+  onOpenResult,
+  onOpenCatalogue
 }: {
   onOpenSection: (slug: string) => void;
   onOpenResult: (r: SearchResult) => void;
+  onOpenCatalogue: (name: "signs" | "markings" | "gestures" | "lights") => void;
 }) {
   const [sections, setSections] = useState<TheorySectionCard[]>([]);
   const [q, setQ] = useState("");
@@ -309,17 +312,34 @@ function TheoryHome({
           ))}
         </div>
       ) : (
-        <div className="theory-grid">
-          {sections.map((s) => (
-            <button key={s.id} className="theory-tile" onClick={() => onOpenSection(s.slug)}>
-              <strong>{s.title}</strong>
-              {s.subtitle && <span className="muted">{s.subtitle}</span>}
-              {s.progress && (
-                <span className="muted">{s.progress.viewed} / {s.progress.total} {t("viewed")}</span>
-              )}
+        <>
+          <div className="theory-grid">
+            <button className="theory-tile" onClick={() => onOpenCatalogue("signs")}>
+              <strong>🚸 {t("signs")}</strong>
+              <span className="muted">{t("signsCatalogueHint")}</span>
             </button>
-          ))}
-        </div>
+            <button className="theory-tile" onClick={() => onOpenCatalogue("markings")}>
+              <strong>🛣️ {t("markings")}</strong>
+            </button>
+            <button className="theory-tile" onClick={() => onOpenCatalogue("gestures")}>
+              <strong>🧍 {t("gestures")}</strong>
+            </button>
+            <button className="theory-tile" onClick={() => onOpenCatalogue("lights")}>
+              <strong>🚦 {t("lights")}</strong>
+            </button>
+          </div>
+          <div className="theory-list">
+            {sections.map((s) => (
+              <button key={s.id} className="theory-tile" onClick={() => onOpenSection(s.slug)}>
+                <strong>{s.title}</strong>
+                {s.subtitle && <span className="muted">{s.subtitle}</span>}
+                {s.progress && (
+                  <span className="muted">{s.progress.viewed} / {s.progress.total} {t("viewed")}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
