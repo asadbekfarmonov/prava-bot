@@ -1,23 +1,34 @@
-:root { color-scheme: light; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-* { box-sizing: border-box; }
-body { margin: 0; background: #f4f7fc; color: #1b2733; }
-#root { max-width: 640px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 20px; }
-.card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 12px; }
-button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 1px solid #d0d7e2; background: #2f6fed; color: #fff; cursor: pointer; }
-button.secondary { background: #fff; color: #2f6fed; }
-button:disabled { opacity: .5; cursor: default; }
-.option { display: block; width: 100%; text-align: left; margin: 8px 0; background: #fff; color: #1b2733; border: 1px solid #d0d7e2; }
-.option.selected { border-color: #2f6fed; }
-.option.correct { border-color: #1a9e5c; background: #e9f9f0; }
-.option.wrong { border-color: #d64545; background: #fdeaea; }
-.explain { font-size: 14px; color: #45525f; margin-top: 4px; }
-input { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #d0d7e2; width: 100%; }
-.rule { border-left: 3px solid #2f6fed; padding-left: 10px; margin-top: 10px; }
-.muted { color: #7a8794; font-size: 13px; }
-select { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #d0d7e2; width: 100%; margin-bottom: 12px; }
+/* Legacy + Theory/admin classes, now TOKEN-BASED so they respect light/dark
+   (docs/spec/16 Phase 20). Base resets, body, and the shared component library live in
+   ui/tokens.css; this file only styles classes still used by theory.tsx / admin.tsx and
+   the intentionally fixed-dark exam surface (docs/spec/12). No hardcoded consumer colors. */
 
-/* Exam mode: visually distinct, plain, terminal-like (docs/spec/12). */
+h1 { font-size: var(--font-lg); }
+.card {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-4); box-shadow: var(--shadow-1);
+  margin-bottom: var(--space-3);
+}
+button {
+  font: inherit; padding: 10px 16px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: var(--accent); color: var(--accent-contrast); cursor: pointer;
+}
+button.secondary { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+button:disabled { opacity: .5; cursor: default; }
+.option {
+  display: block; width: 100%; text-align: left; margin: 8px 0;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+}
+.option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.option.correct { border-color: var(--success); background: var(--success-soft); }
+.option.wrong { border-color: var(--danger); background: var(--danger-soft); }
+.explain { font-size: var(--font-sm); color: var(--text-muted); margin-top: 4px; }
+input { font: inherit; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); width: 100%; background: var(--surface); color: var(--text); }
+.rule { border-left: 3px solid var(--accent); padding-left: 10px; margin-top: 10px; }
+.muted { color: var(--text-muted); font-size: 13px; }
+select { font: inherit; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); width: 100%; margin-bottom: 12px; background: var(--surface); color: var(--text); }
+
+/* Exam mode: intentionally fixed dark, plain, terminal-like (docs/spec/12) — theme-independent. */
 .card.exam { background: #10233b; color: #eaf1fb; box-shadow: none; border: 1px solid #24405f; }
 .card.exam h1 { font-size: 18px; }
 .card.exam .option { background: #16304f; color: #eaf1fb; border-color: #2f5680; }
@@ -35,17 +46,17 @@ select { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid #d
 .nav-cell.marked { background: #c98a12; border-color: #c98a12; }
 .nav-cell.current { outline: 2px solid #5aa2ff; }
 .exam-actions { display: flex; gap: 8px; }
-button.marked { background: #c98a12; color: #fff; }
+button.marked { background: var(--warning); color: #fff; }
 .result-score { font-size: 22px; }
-.result-score .pass { color: #1a9e5c; }
-.result-score .fail { color: #d64545; }
-.review-item { border-top: 1px solid #24405f; padding-top: 12px; margin-top: 12px; }
+.result-score .pass { color: var(--success); }
+.result-score .fail { color: var(--danger); }
+.review-item { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
 
-/* ---- Admin studio ---- */
+/* ---- Admin studio (internal tool) — tokenized so it works in dark too ---- */
 .admin-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
 .admin-nav button.active { font-weight: 700; }
 .admin-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-.admin-stat { border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; min-width: 90px; }
+.admin-stat { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; min-width: 90px; }
 .admin-stat-value { font-size: 1.4rem; font-weight: 700; }
 .editor-layout { display: flex; gap: 16px; flex-wrap: wrap; }
 .editor-form { flex: 1 1 320px; }
@@ -55,47 +66,47 @@ button.marked { background: #c98a12; color: #fff; }
 .rule-picker { margin: 10px 0; }
 .rule-results { display: flex; flex-wrap: wrap; gap: 4px; }
 .rule-chip { font-size: 0.8rem; }
-.rule-chip.picked { outline: 2px solid #2b7; }
-.rule-chip.superseded { color: #b00; }
-.preview { border: 1px dashed #bbb; border-radius: 8px; padding: 10px; }
+.rule-chip.picked { outline: 2px solid var(--success); }
+.rule-chip.superseded { color: var(--danger); }
+.preview { border: 1px dashed var(--border); border-radius: 8px; padding: 10px; }
 .preview-mobile { max-width: 320px; }
 .preview-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
 .preview-tabs button.active { font-weight: 700; }
 .checklist { list-style: none; padding-left: 0; }
-.checklist li.pass { color: #2a7; }
-.checklist li.fail { color: #c22; }
+.checklist li.pass { color: var(--success); }
+.checklist li.fail { color: var(--danger); }
 .review-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
 .ranking-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-.ranking-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.ranking-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .ranking-table td:last-child { text-align: right; font-weight: 600; }
-.ranking-table .own-row { background: rgba(80,160,255,0.18); border-radius: 6px; }
+.ranking-table .own-row { background: var(--accent-soft); border-radius: 6px; }
 
 /* ---- Theory / Nazariya (docs/spec/14): friendly, visual, DISTINCT from exam mode ---- */
 .theory-wrap { display: flex; flex-direction: column; }
-.card.theory { background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%); border: 1px solid #e0ebfb; border-radius: 18px; }
-.card.theory h1 { color: #17406b; }
+.card.theory { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; }
+.card.theory h1 { color: var(--accent); }
 .theory-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
 .theory-tabs button { padding: 8px 12px; border-radius: 999px; font-size: 14px; }
 .theory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-.theory-tile { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; background: #fff; color: #1b2733; border: 1px solid #e0ebfb; border-radius: 14px; padding: 12px; }
+.theory-tile { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
 .theory-tile.sign { align-items: center; text-align: center; }
 .theory-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .theory-sign-img { width: 72px; height: 72px; object-fit: contain; }
-.theory-sign-ph { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; background: #eef4ff; border-radius: 10px; color: #17406b; font-weight: 700; }
+.theory-sign-ph { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); border-radius: 10px; color: var(--accent); font-weight: 700; }
 .theory-media { max-width: 100%; border-radius: 12px; margin: 8px 0; }
 .theory-figure { margin: 8px 0; }
 .theory-text { line-height: 1.55; }
 .theory-blocks > * { margin-bottom: 10px; }
 .theory-callout { border-radius: 12px; padding: 10px 12px; }
-.theory-callout.warn { background: #fff4e5; border: 1px solid #ffd699; }
-.theory-callout.tip { background: #e9f9f0; border: 1px solid #b7e6cb; }
-.theory-callout.example { background: #eef4ff; border: 1px solid #cfe0fb; }
+.theory-callout.warn { background: var(--warning-soft); border: 1px solid var(--warning); }
+.theory-callout.tip { background: var(--success-soft); border: 1px solid var(--success); }
+.theory-callout.example { background: var(--accent-soft); border: 1px solid var(--accent); }
 .theory-table { width: 100%; border-collapse: collapse; }
-.theory-table th, .theory-table td { border: 1px solid #d0d7e2; padding: 6px 8px; text-align: left; }
-.theory-compare-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #e0ebfb; }
-.theory-badge { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: #17406b; color: #fff; border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
+.theory-table th, .theory-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+.theory-compare-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.theory-badge { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: var(--accent); color: var(--accent-contrast); border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
 .theory-search-results { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .theory-result { text-align: left; }
-.theory-fav { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #e0ebfb; }
-.theory-rule { background: #eef4ff; border-radius: 10px; padding: 8px 12px; }
+.theory-fav { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.theory-rule { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; }

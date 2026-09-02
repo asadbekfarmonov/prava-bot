@@ -1,13 +1,16 @@
 import type {
   AnswerResult,
   DashboardOut,
+  FullProfileOut,
+  HomeSummary,
   MistakeItem,
   MockAttemptState,
   MockReview,
+  NextAction,
   NextQuestion,
-  ProfileOut,
   RankingOut,
   ReadinessOut,
+  TopicProgressRow,
   UserOut
 } from "./types";
 
@@ -42,12 +45,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ telegram_id: 1001, first_name: "Dev" })
     }),
-  me: () => request<{ user: UserOut; profile: ProfileOut | null }>("/api/auth/me"),
-  saveProfile: (displayName: string) =>
-    request<{ profile: ProfileOut }>("/api/profile", {
+  me: () => request<{ user: UserOut; profile: FullProfileOut | null }>("/api/auth/me"),
+  saveProfile: (patch: Partial<{
+    display_name: string;
+    target_exam_date: string | null;
+    daily_goal: number | null;
+    ranking_name: string | null;
+    show_on_ranking: boolean;
+    timezone: string;
+  }> & { display_name: string }) =>
+    request<{ profile: FullProfileOut }>("/api/profile", {
       method: "PUT",
-      body: JSON.stringify({ display_name: displayName, category: "B", language: "uz" })
+      body: JSON.stringify({ category: "B", language: "uz", ...patch })
     }),
+  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: "{}" }),
+  home: () => request<HomeSummary>("/api/home"),
+  nextAction: () => request<NextAction>("/api/practice/next-action"),
+  topicProgress: () => request<{ topics: TopicProgressRow[] }>("/api/progress/topics"),
   createSession: (topic: string | null, source?: string) =>
     request<{ id: string }>("/api/practice/sessions", {
       method: "POST",

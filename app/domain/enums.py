@@ -105,6 +105,9 @@ class PracticeSource(StrEnum):
     SIGN_TRAINER = "sign_trainer"
     DIAGNOSTIC = "diagnostic"
     THEORY = "theory"
+    # Additive (docs/spec/17 §A). Non-native enum persisted by member NAME -> no
+    # data migration needed for existing rows.
+    PERSONALIZED = "personalized"
 
 
 class SourceKind(StrEnum):

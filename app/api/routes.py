@@ -147,6 +147,7 @@ def _parse_source(source: str | None, topic: Topic | None) -> PracticeSource:
         PracticeSource.MIXED,
         PracticeSource.MISTAKES,
         PracticeSource.SIGN_TRAINER,
+        PracticeSource.PERSONALIZED,
     }:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Noma'lum mashq turi")
     return parsed
@@ -158,8 +159,12 @@ def create_practice_session(
 ) -> dict:
     topic = _parse_topic(payload.topic)
     source = _parse_source(payload.source, topic)
-    # mistakes / sign_trainer are not topic-scoped sessions.
-    if source in {PracticeSource.MISTAKES, PracticeSource.SIGN_TRAINER}:
+    # mistakes / sign_trainer / personalized are not topic-scoped sessions.
+    if source in {
+        PracticeSource.MISTAKES,
+        PracticeSource.SIGN_TRAINER,
+        PracticeSource.PERSONALIZED,
+    }:
         topic = None
     session = practice.create_practice_session(db, user, topic, source=source)
     return {
@@ -204,6 +209,13 @@ def next_question(
         if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Belgi savollari topilmadi"
+            )
+        return payload
+    if source == "personalized":
+        payload = practice.next_personalized_payload(db, user, user.profile.category)
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Savol topilmadi"
             )
         return payload
 
@@ -334,3 +346,28 @@ def get_ranking(
 
     range_key = range if range in {"week", "month", "all"} else "all"
     return ranking_service.leaderboard(db, user, range_key, limit=limit)
+
+
+
+# --------------------------------------------------------------------------- #
+# Home hub / personalized next-action / topic progress (Core — docs/spec/16, 17)
+# --------------------------------------------------------------------------- #
+@router.get("/home")
+def get_home(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import home as home_service
+
+    return home_service.build(db, user)
+
+
+@router.get("/practice/next-action")
+def get_next_action(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import next_action as next_action_service
+
+    return next_action_service.resolve(db, user)
+
+
+@router.get("/progress/topics")
+def get_topic_progress(user: CompletedOnboardingUser, db: DbSession) -> dict:
+    from app.services import readiness as readiness_service
+
+    return {"topics": readiness_service.topic_progress(db, user)}

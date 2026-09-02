@@ -235,3 +235,39 @@ def ingest_upload(
         return _ingest_video(db, raw, sniffed, alt_text_uz)
 
     raise MediaValidationError("Fayl turini aniqlab bo'lmadi yoki u qo'llab-quvvatlanmaydi.")
+
+
+# --------------------------------------------------------------------------- #
+# Read serializer — no-leak media metadata for question-embedding surfaces.
+# Returns ONLY presentation metadata (never answer/explanation/rule). Enough for
+# the frontend QuestionMedia component to build the content-addressed URL and pick
+# an <img> vs <video> renderer with a fixed aspect-ratio box.
+# --------------------------------------------------------------------------- #
+def media_meta(db: Session, media_id: str | None) -> dict | None:
+    """Resolve a QuestionMedia into a small presentation dict, or ``None``.
+
+    Shape: ``{media_id, content_hash, media_type, url, alt, width, height, duration_ms}``.
+    The ``url`` is the public content-addressed serving route
+    ``/api/media/{id}/{hash}``. Alt text (Uzbek) is included for accessibility.
+    """
+    if not media_id:
+        return None
+    media = db.get(QuestionMedia, media_id)
+    if media is None:
+        return None
+    alt_tr = db.scalar(
+        select(QuestionMediaTranslation).where(
+            QuestionMediaTranslation.media_id == media.id,
+            QuestionMediaTranslation.language == Language.UZ,
+        )
+    )
+    return {
+        "media_id": media.id,
+        "content_hash": media.content_hash,
+        "media_type": media.media_type.value,
+        "url": f"/api/media/{media.id}/{media.content_hash}",
+        "alt": alt_tr.alt_text if alt_tr else None,
+        "width": media.width,
+        "height": media.height,
+        "duration_ms": media.duration_ms,
+    }

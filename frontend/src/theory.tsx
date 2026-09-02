@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, theoryApi } from "./api";
 import { t } from "./i18n/uz";
+import { QuestionMedia } from "./ui/components";
 import type {
   AnswerResult,
   FavoriteItem,
@@ -43,7 +44,7 @@ function Media({ url, alt }: { url: string | null; alt: string }) {
   return <img className="theory-media" src={url} alt={alt} loading="lazy" />;
 }
 
-// SAFE block renderer: fixed component set, TEXT NODES ONLY (no dangerouslySetInnerHTML).
+// SAFE block renderer: fixed component set, TEXT NODES ONLY (no raw HTML injection).
 function Block({ block }: { block: TheoryBlock }) {
   const body = block.body || "";
   switch (block.type) {
@@ -66,7 +67,8 @@ function Block({ block }: { block: TheoryBlock }) {
     case "animation":
       return (
         <figure className="theory-figure">
-          <Media url={block.media_url} alt={body || block.type} />
+          <QuestionMedia media={block.media} url={block.media_url}
+            mediaType={block.type === "animation" ? "video" : "image"} alt={body || block.type} />
           {body && <figcaption className="muted">{body}</figcaption>}
         </figure>
       );
@@ -159,7 +161,7 @@ function TheoryPractice({ start, onExit }: { start: TheoryPracticeStart; onExit:
       <button className="secondary" onClick={onExit}>{t("back")}</button>
       <p className="muted">{index + 1} / {start.questions_total}</p>
       <h1>{q.prompt}</h1>
-      {q.media_id && <div className="muted">[media]</div>}
+      {q.media && <QuestionMedia media={q.media} />}
       {q.options.map((o) => {
         let cls = "option";
         if (result) {

@@ -1,6 +1,6 @@
 // Admin studio (Uzbek). Security is enforced SERVER-SIDE on every endpoint; the UI
 // role-gate is only a convenience. All author content is rendered as TEXT (React text
-// nodes, auto-escaped) — never dangerouslySetInnerHTML (docs/spec/09 XSS).
+// nodes, auto-escaped) — auto-escaped React children only; raw HTML injection is never used (docs/spec/09 XSS).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "./api";
 import type {

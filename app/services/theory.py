@@ -75,6 +75,13 @@ def _media_url(db: Session, media_id: str | None) -> str | None:
     return f"/api/media/{media.id}/{media.content_hash}"
 
 
+def _theory_media_meta(db: Session, media_id: str | None) -> dict | None:
+    """No-leak media presentation metadata for theory blocks/detail surfaces."""
+    from app.services.media import media_meta
+
+    return media_meta(db, media_id)
+
+
 def _rule_out(db: Session, rule_id: str, rule_version: int | None = None) -> dict | None:
     rule = db.get(Rule, rule_id)
     if rule is None:
@@ -215,6 +222,9 @@ def _block_out(db: Session, block: TheoryContentBlock) -> dict:
         "body": tr.body if tr else "",
         "data": block.data_json,
         "media_url": _media_url(db, block.media_id),
+        # No-leak media metadata so the frontend QuestionMedia can pick <img> vs
+        # <video> and build a fixed aspect-ratio box (never any answer data).
+        "media": _theory_media_meta(db, block.media_id),
     }
     if block.type == TheoryBlockType.RULE_CALLOUT and block.rule_id:
         out["rule"] = _rule_out(db, block.rule_id)

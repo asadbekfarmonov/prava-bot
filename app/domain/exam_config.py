@@ -153,6 +153,38 @@ CORRECT_OPTIONS_PER_QUESTION: int = EXAM_CONFIG_B_V1.correct_options_per_questio
 
 
 # --------------------------------------------------------------------------- #
+# Personalized practice ("Siz uchun") selector configuration (docs/spec/17 §A).
+# DOMAIN config (never env). The selector reuses stored PracticeAnswer / MockAnswer
+# / MistakeEntry facts and picks a next question from weighted buckets, in this
+# priority intent: unresolved mistakes -> weak topics -> unseen -> stale.
+# Weights are relative and only applied across NON-EMPTY buckets.
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class PersonalizedPracticeConfig:
+    version: int = 1
+    # relative selection weights across non-empty buckets
+    weight_mistakes: int = 40
+    weight_weak_topic: int = 30
+    weight_unseen: int = 20
+    weight_stale: int = 10
+    # a topic is "weak" when it has >= min_answers answered AND mastery < max_mastery
+    weak_topic_min_answers: int = 5
+    weak_topic_max_mastery: float = 0.75
+    # a previously-seen question is "stale" if not answered in the last N days
+    stale_days: int = 14
+    # how many unique questions must be unseen before the unseen bucket is preferred
+    unseen_min_pool: int = 1
+
+
+PERSONALIZED_PRACTICE_CONFIG = PersonalizedPracticeConfig()
+
+
+def get_personalized_practice_config() -> PersonalizedPracticeConfig:
+    """Return the current personalized-practice config (monkeypatchable in tests)."""
+    return PERSONALIZED_PRACTICE_CONFIG
+
+
+# --------------------------------------------------------------------------- #
 # Theory / YHQ Handbook configuration (docs/spec/14). DOMAIN config, never env.
 # 'mastered' is derived server-side from question performance on linked questions,
 # NOT from opening a page. These thresholds gate that derivation.

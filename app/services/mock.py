@@ -343,6 +343,13 @@ def _remaining_seconds(attempt: MockAttempt) -> int:
     return max(0, int((_as_aware(attempt.expires_at) - _now()).total_seconds()))
 
 
+def _media_meta(db: Session, media_id: str | None) -> dict | None:
+    """No-leak media presentation metadata (delegates to the media service)."""
+    from app.services.media import media_meta
+
+    return media_meta(db, media_id)
+
+
 def _safe_question_payload(db: Session, mq: MockQuestion, answer: MockAnswer | None) -> dict:
     """NO-ANSWER-LEAK payload: only question_version_id, prompt, media ref, and
     options as {id, position, text}. Option order is by position (stored order is
@@ -361,6 +368,7 @@ def _safe_question_payload(db: Session, mq: MockQuestion, answer: MockAnswer | N
         "question_version_id": mq.question_version_id,
         "prompt": translation.prompt if translation else "",
         "media_id": version.media_id if version else None,
+        "media": _media_meta(db, version.media_id if version else None),
         "options": [
             {"id": o.id, "position": o.position, "text": _option_text(db, o.id)} for o in options
         ],
@@ -635,6 +643,7 @@ def review(db: Session, user: User, attempt_id: str) -> dict:
                 "question_version_id": mq.question_version_id,
                 "prompt": translation.prompt if translation else "",
                 "media_id": version.media_id if version else None,
+                "media": _media_meta(db, version.media_id if version else None),
                 "short_explanation": translation.short_explanation if translation else "",
                 "selected_option_id": ans.selected_option_id if ans else None,
                 "is_correct": ans.is_correct if ans else False,

@@ -8,13 +8,14 @@ non-leak — practice reveals only *after* answering).
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.domain.enums import Category, Language, PracticeSource, Topic, VersionStatus
+from app.domain.exam_config import get_personalized_practice_config
 from app.domain.models import (
     AnswerOption,
     AnswerOptionTranslation,
@@ -30,6 +31,13 @@ from app.domain.models import (
 )
 
 _LANG = Language.UZ
+
+
+def _media_meta(db: Session, media_id: str | None) -> dict | None:
+    """No-leak media presentation metadata (delegates to the media service)."""
+    from app.services.media import media_meta
+
+    return media_meta(db, media_id)
 
 
 def create_practice_session(
@@ -153,6 +161,8 @@ def _payload_for_version(db: Session, version: QuestionVersion) -> dict:
         "is_sign_question": bool(question and question.is_sign_question),
         "prompt": translation.prompt if translation else "",
         "media_id": version.media_id,
+        # No-leak media metadata for QuestionMedia (never answer/explanation/rule).
+        "media": _media_meta(db, version.media_id),
         "options": [
             {"id": o.id, "position": o.position, "text": _option_text(db, o.id)} for o in options
         ],
@@ -298,3 +308,124 @@ def submit_answer(
         ],
         "rule": _rule_for_version(db, version),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Personalized practice ("Siz uchun") — docs/spec/17 §A.
+# Server-side selector over stored facts. Reuses the SAME no-leak payload and the
+# SAME server-side grading; a client can never request an answer key or bias the
+# selection toward a known answer.
+# --------------------------------------------------------------------------- #
+def _answered_question_ids_with_recency(
+    db: Session, user: User
+) -> dict[str, datetime]:
+    """Map question_id -> most-recent attempt time across practice + mock answers."""
+    seen: dict[str, datetime] = {}
+
+    rows = db.execute(
+        select(Question.id, PracticeAnswer.attempted_at)
+        .join(QuestionVersion, QuestionVersion.id == PracticeAnswer.question_version_id)
+        .join(Question, Question.id == QuestionVersion.question_id)
+        .join(PracticeSession, PracticeSession.id == PracticeAnswer.practice_session_id)
+        .where(PracticeSession.user_id == user.id)
+    ).all()
+    for qid, when in rows:
+        w = when.replace(tzinfo=timezone.utc) if (when and when.tzinfo is None) else when
+        if w is not None and (qid not in seen or w > seen[qid]):
+            seen[qid] = w
+    return seen
+
+
+def _random_published_version_in_ids(
+    db: Session, question_ids: list[str], category: Category
+) -> QuestionVersion | None:
+    if not question_ids:
+        return None
+    version_ids = list(
+        db.scalars(
+            _published_version_query(None, category)
+            .with_only_columns(QuestionVersion.id)
+            .where(Question.id.in_(question_ids))
+        )
+    )
+    if not version_ids:
+        return None
+    return db.get(QuestionVersion, random.choice(version_ids))
+
+
+def pick_next_personalized_version(
+    db: Session, user: User, category: Category = Category.B
+) -> QuestionVersion | None:
+    """Choose a next question from weighted buckets:
+    unresolved mistakes -> weak topics -> unseen -> stale (weights in domain config).
+    Only non-empty buckets are considered; falls back to a random published question.
+    """
+    from app.services import mistakes as mistakes_service
+    from app.services import readiness as readiness_service
+
+    cfg = get_personalized_practice_config()
+    now = datetime.now(timezone.utc)
+
+    # Bucket 1: unresolved mistakes (hardest first).
+    mistake_version = mistakes_service.pick_next_mistake_version(db, user)
+
+    seen = _answered_question_ids_with_recency(db, user)
+    seen_ids = set(seen.keys())
+
+    # Bucket 2: weak topics (enough sample, low mastery) -> a question in that topic.
+    weak_topic_value: str | None = None
+    for row in readiness_service.topic_progress(db, user):
+        if (
+            row["answered"] >= cfg.weak_topic_min_answers
+            and row["mastery"] < cfg.weak_topic_max_mastery
+        ):
+            weak_topic_value = row["topic"]
+            break
+    weak_version = None
+    if weak_topic_value is not None:
+        try:
+            weak_version = pick_next_version(db, Topic(weak_topic_value), category)
+        except ValueError:
+            weak_version = None
+
+    # Bucket 3: unseen published questions.
+    all_ids = list(
+        db.scalars(
+            _published_version_query(None, category).with_only_columns(Question.id)
+        )
+    )
+    unseen_ids = [qid for qid in all_ids if qid not in seen_ids]
+    unseen_version = _random_published_version_in_ids(db, unseen_ids, category)
+
+    # Bucket 4: stale (seen but not in the recent window).
+    stale_cutoff = now - timedelta(days=cfg.stale_days)
+    stale_ids = [qid for qid, when in seen.items() if when < stale_cutoff]
+    stale_version = _random_published_version_in_ids(db, stale_ids, category)
+
+    buckets: list[tuple[int, QuestionVersion]] = []
+    if mistake_version is not None:
+        buckets.append((cfg.weight_mistakes, mistake_version))
+    if weak_version is not None:
+        buckets.append((cfg.weight_weak_topic, weak_version))
+    if unseen_version is not None and len(unseen_ids) >= cfg.unseen_min_pool:
+        buckets.append((cfg.weight_unseen, unseen_version))
+    if stale_version is not None:
+        buckets.append((cfg.weight_stale, stale_version))
+
+    if buckets:
+        weights = [w for w, _ in buckets]
+        chosen = random.choices([v for _, v in buckets], weights=weights, k=1)[0]
+        return chosen
+
+    # Fallback: any published question (keeps the flow alive for a fresh user).
+    return pick_next_version(db, None, category)
+
+
+def next_personalized_payload(
+    db: Session, user: User, category: Category = Category.B
+) -> dict | None:
+    """No-leak payload for the personalized selector."""
+    version = pick_next_personalized_version(db, user, category)
+    if version is None:
+        return None
+    return _payload_for_version(db, version)

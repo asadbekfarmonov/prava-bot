@@ -110,9 +110,120 @@ export const uz = {
   back: "Orqaga",
   viewed: "ko'rildi",
   mastered: "o'zlashtirildi",
-  practised: "mashq qilindi"
+  practised: "mashq qilindi",
+
+  // ---- Redesign: navigation ----
+  tabHome: "Asosiy",
+  tabPractice: "Mashq",
+  tabTheory: "Nazariya",
+  tabExam: "Imtihon",
+  tabProfile: "Profil",
+
+  // ---- Home hub ----
+  greeting: "Salom",
+  examCountdownSuffix: "kun qoldi",
+  examToday: "Imtihon bugun!",
+  examPassedDate: "Imtihon sanasi o'tdi",
+  readinessTitle: "Imtihonga tayyorlik",
+  initialLevel: "Boshlang'ich daraja",
+  continueCta: "Davom etish",
+  dailyGoalTitle: "Bugungi maqsad",
+  forYou: "Siz uchun",
+  quickAccess: "Tezkor kirish",
+  lastMockLabel: "Oxirgi imtihon",
+  seenLabel: "Ko'rilgan",
+  daysWord: "kun",
+  repeatWord: "Takrorlash",
+  practiceWord: "Mashq",
+  setExamDatePrompt: "Imtihon sanasini belgilang",
+
+  // ---- Practice hub ----
+  practiceHub: "Mashqlar",
+  modeForYou: "Siz uchun",
+  modeForYouSub: "Shaxsiy tavsiya bo'yicha savollar",
+  modeByTopic: "Mavzu bo'yicha",
+  modeByTopicSub: "15 ta mavzudan birini tanlang",
+  modeMistakes: "Xatolar",
+  modeMistakesSub: "Xato qilgan savollaringizni takrorlang",
+  modeSigns: "Yo'l belgilari",
+  modeSignsSub: "Belgilar bo'yicha mashq",
+  modeRealExam: "Real imtihon",
+  modeRealExamSub: "20 savol · 25 daqiqa",
+  comingSoon: "Tez orada",
+  chooseTopic: "Mavzuni tanlang",
+  mode50: "50 talik test",
+  mode100: "100 talik test",
+  modeTickets: "Biletlar",
+
+  // ---- Practice question ----
+  whyCorrectPrefix: "Nega",
+  whyNotPrefix: "Nega",
+  whyNotSuffix: "emas?",
+  ruleSection: "Qoida",
+  viewRuleInTheory: "Qoidani ko'rish",
+  youShort: "Siz",
+  correctShort: "To'g'ri",
+  notRealExamNote: "Bu real imtihon emas",
+
+  // ---- Exam ----
+  examEntryTitle: "Real imtihon",
+  examEntrySummary: "20 savol · 25 daqiqa · 18 ta to'g'ri javob kerak",
+  examEntryWarn: "Imtihon davomida: tushuntirish yo'q · yordam yo'q · vaqt to'xtamaydi",
+  examStartBtn: "Imtihonni boshlash",
+  readinessLabel: "Tayyorlik",
+  againExam: "Yana imtihon",
+
+  // ---- Profile ----
+  examDate: "Imtihon sanasi",
+  categoryLabel: "Toifa",
+  languageLabel: "Til",
+  settings: "Sozlamalar",
+  privacy: "Maxfiylik",
+  showOnRanking: "Reytingda ko'rinish",
+  rankingName: "Reyting uchun nom",
+  logout: "Chiqish",
+  adminStudio: "Admin studiya",
+  mockHistory: "Imtihonlar tarixi",
+  questionsAnswered: "Javob berilgan savollar",
+  saveChanges: "Saqlash",
+  saved2: "Saqlandi",
+  rankingPosition: "Reyting o'rni",
+
+  // ---- States (Uzbek copy, docs/spec Phase 18/19) ----
+  retry: "Qayta urinish",
+  offlineMsg: "Internet aloqasi yo'q. Ulanish tiklanmoqda...",
+  emptyMistakesMsg: "Hali xatolaringiz yo'q. Mashqni davom ettiring.",
+  emptyMocksMsg: "Hali mock imtihon topshirmagansiz.",
+  firstExamBtn: "Birinchi imtihonni boshlash",
+  rankingNeedMsg: "Reyting uchun kamida 20 ta savol yeching.",
+  loadFailed: "Yuklab bo'lmadi",
+  noData: "Ma'lumot yo'q"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {
   return uz[key];
+}
+
+// Localized Uzbek topic labels (docs/spec/16 Phase 4 — never show raw enum keys).
+export const TOPIC_LABELS: Record<string, string> = {
+  general_rules: "Umumiy qoidalar",
+  road_signs: "Yo'l belgilari",
+  road_markings: "Yo'l belgilanishlari",
+  signals: "Svetofor va signallar",
+  intersections: "Chorrahalar",
+  manoeuvring: "Manevr qilish",
+  speed_distance: "Tezlik va masofa",
+  overtaking: "Quvib o'tish",
+  stopping_parking: "To'xtash va to'xtab turish",
+  vulnerable_users: "Piyodalar va zaif ishtirokchilar",
+  railway_crossings: "Temir yo'l kesishmalari",
+  motorways_special: "Avtomagistrallar",
+  vehicle_condition: "Transport holati",
+  transport_of_people_cargo: "Yo'lovchi va yuk tashish",
+  emergencies_first_aid: "Favqulodda holat va birinchi yordam"
+};
+
+export function topicLabel(topic: string | null | undefined): string {
+  if (!topic) return "";
+  return TOPIC_LABELS[topic] || topic;
 }

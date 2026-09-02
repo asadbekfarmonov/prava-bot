@@ -353,3 +353,46 @@ def recompute_and_cache(db: Session, user: User) -> dict:
     snap.computed_at = _now()
     db.flush()
     return payload
+
+
+def topic_progress(db: Session, user: User) -> list[dict]:
+    """Per-topic mastery for the Progress screen and the personalized selector.
+
+    Reuses the same answer-gathering as ``compute``. Returns ALL v1 topics (0 for
+    unseen), each with ``questions_seen`` (unique), ``answered``, ``correct``,
+    ``accuracy``, ``mastery`` and ``needs_more_practice`` (below the mastery sample
+    threshold). Sorted weakest-first (then most-answered) so callers can take the
+    top weak topic directly.
+    """
+    cfg = get_readiness_config()
+    recs = _gather_answers(db, user)
+
+    answered: dict[str, int] = {}
+    correct: dict[str, int] = {}
+    seen_qids: dict[str, set[str]] = {}
+    for r in recs:
+        answered[r.topic] = answered.get(r.topic, 0) + 1
+        if r.is_correct:
+            correct[r.topic] = correct.get(r.topic, 0) + 1
+        seen_qids.setdefault(r.topic, set()).add(r.question_id)
+
+    rows: list[dict] = []
+    for topic in Topic:
+        tv = topic.value
+        a = answered.get(tv, 0)
+        c = correct.get(tv, 0)
+        acc = (c / a) if a else 0.0
+        rows.append(
+            {
+                "topic": tv,
+                "label": topic_label(tv),
+                "answered": a,
+                "correct": c,
+                "questions_seen": len(seen_qids.get(tv, set())),
+                "accuracy": round(acc, 3),
+                "mastery": round(acc, 3),
+                "needs_more_practice": a < cfg.topic_min_answers,
+            }
+        )
+    rows.sort(key=lambda t: (t["mastery"], -t["answered"]))
+    return rows

@@ -17,6 +17,17 @@ export interface ProfileOut {
   onboarding_completed: boolean;
 }
 
+export interface MediaMeta {
+  media_id: string;
+  content_hash: string;
+  media_type: string; // "image" | "gif" | "video"
+  url: string;
+  alt: string | null;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+}
+
 export interface NextOption {
   id: string;
   position: number;
@@ -30,6 +41,7 @@ export interface NextQuestion {
   is_sign_question: boolean;
   prompt: string;
   media_id: string | null;
+  media: MediaMeta | null;
   options: NextOption[];
 }
 
@@ -64,6 +76,7 @@ export interface MockQuestionView {
   question_version_id: string;
   prompt: string;
   media_id: string | null;
+  media: MediaMeta | null;
   options: NextOption[];
   selected_option_id: string | null;
   marked_for_review: boolean;
@@ -110,6 +123,7 @@ export interface MockReviewItem {
   question_version_id: string;
   prompt: string;
   media_id: string | null;
+  media: MediaMeta | null;
   short_explanation: string;
   selected_option_id: string | null;
   is_correct: boolean;
@@ -345,6 +359,7 @@ export interface TheoryBlock {
   body: string;
   data: Record<string, unknown> | null;
   media_url: string | null;
+  media: MediaMeta | null;
   rule?: TheoryRule;
   ref_question_id?: string;
 }
@@ -426,4 +441,67 @@ export interface TheoryPracticeStart {
   target_id: string;
   questions_total: number;
   questions: NextQuestion[];
+}
+
+// ---- Home hub / next-action / topic progress (docs/spec/16, 17) ----
+export interface NextAction {
+  action: "resume_mock" | "mistakes" | "weak_topic" | "coverage" | "personalized";
+  source: "mistakes" | "topic" | "personalized" | null;
+  topic: string | null;
+  topic_label: string | null;
+  attempt_id: string | null;
+  label: string;
+  reason: string;
+}
+
+export interface HomeSummary {
+  display_name: string;
+  exam_countdown: { target_exam_date: string; days_remaining: number; passed: boolean } | null;
+  readiness: {
+    state: "insufficient_data" | "initial" | "ready_estimate";
+    label: string;
+    score: number | null;
+    exam_ready: boolean;
+    coverage_met: boolean;
+    mocks_completed: number;
+    unique_questions_attempted: number;
+  };
+  last_mock: {
+    id: string; correct_count: number | null; question_count: number;
+    passed: boolean | null; completed_at: string | null;
+  } | null;
+  daily_goal: { goal: number | null; answered_today: number; met: boolean };
+  streak: { current: number; longest: number };
+  recommendations: {
+    weak_topic: { topic: string; label: string; mastery: number; answered: number } | null;
+    mistakes_open: number;
+  };
+  ranking: {
+    week: { points: number; position: number | null };
+    all: { points: number; position: number | null };
+  };
+  next_action: NextAction;
+}
+
+export interface TopicProgressRow {
+  topic: string;
+  label: string;
+  answered: number;
+  correct: number;
+  questions_seen: number;
+  accuracy: number;
+  mastery: number;
+  needs_more_practice: boolean;
+}
+
+export interface FullProfileOut {
+  display_name: string | null;
+  ranking_name: string | null;
+  show_on_ranking: boolean;
+  category: string;
+  language: string;
+  target_exam_date: string | null;
+  daily_goal: number | null;
+  timezone: string;
+  onboarding_completed: boolean;
 }
