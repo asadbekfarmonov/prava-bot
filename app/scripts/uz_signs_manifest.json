@@ -1,0 +1,310 @@
+{
+"1.25.2": {
+"family": "warning",
+"file": "UZ road sign 1.25.2.svg"
+},
+"1.25.3": {
+"family": "warning",
+"file": "UZ road sign 1.25.3.svg"
+},
+"1.34": {
+"family": "warning",
+"file": "UZ road sign 1.34.svg"
+},
+"1.35": {
+"family": "warning",
+"file": "UZ road sign 1.35.svg"
+},
+"2.3.1": {
+"family": "priority",
+"file": "Uzbekistan road sign 2.3.1.png"
+},
+"2.3.2": {
+"family": "priority",
+"file": "Uzbekistan road sign 2.3.2.png"
+},
+"2.3.3": {
+"family": "priority",
+"file": "Uzbekistan road sign 2.3.3.png"
+},
+"3.12": {
+"family": "prohibitory",
+"file": "UZ road sign 3.12.svg"
+},
+"3.16": {
+"family": "prohibitory",
+"file": "UZ road sign 3.16.svg"
+},
+"3.17.1": {
+"family": "prohibitory",
+"file": "UZ road sign 3.17.1 (2022).svg"
+},
+"3.17.2": {
+"family": "prohibitory",
+"file": "UZ road sign 3.17.2.svg"
+},
+"3.17.3": {
+"family": "prohibitory",
+"file": "UZ road sign 3.17.3.svg"
+},
+"5.11.2": {
+"family": "information",
+"file": "UZ road sign 5.11.2.svg"
+},
+"5.14": {
+"family": "information",
+"file": "UZ road sign 5.14.svg"
+},
+"5.15.1": {
+"family": "information",
+"file": "UZ road sign 5.15.1.svg"
+},
+"5.15.2": {
+"family": "information",
+"file": "UZ road sign 5.15.2.svg"
+},
+"5.15.3": {
+"family": "information",
+"file": "UZ road sign 5.15.3.svg"
+},
+"5.15.4": {
+"family": "information",
+"file": "UZ road sign 5.15.4.svg"
+},
+"5.19.4": {
+"family": "information",
+"file": "UZ road sign 5.19.4.svg"
+},
+"5.20.1": {
+"family": "information",
+"file": "UZ road sign 5.20.1 A.svg"
+},
+"5.20.2": {
+"family": "information",
+"file": "UZ road sign 5.20.2 B.svg"
+},
+"5.20.4": {
+"family": "information",
+"file": "UZ road sign 5.20.4 A.svg"
+},
+"5.20.5": {
+"family": "information",
+"file": "UZ road sign 5.20.5.svg"
+},
+"5.21.1": {
+"family": "information",
+"file": "UZ road sign 5.21.1 B.svg"
+},
+"5.21.2": {
+"family": "information",
+"file": "UZ road sign 5.21.2 A.svg"
+},
+"5.22": {
+"family": "information",
+"file": "UZ road sign 5.22.svg"
+},
+"5.23": {
+"family": "information",
+"file": "UZ road sign 5.23.svg"
+},
+"5.24": {
+"family": "information",
+"file": "UZ road sign 5.24.svg"
+},
+"5.25": {
+"family": "information",
+"file": "UZ road sign 5.25.svg"
+},
+"5.26": {
+"family": "information",
+"file": "UZ road sign 5.26 B.svg"
+},
+"5.27": {
+"family": "information",
+"file": "UZ road sign 5.27.svg"
+},
+"5.31": {
+"family": "information",
+"file": "UZ road sign 5.31.svg"
+},
+"5.32.1": {
+"family": "information",
+"file": "UZ road sign 5.32.1.svg"
+},
+"5.32.2": {
+"family": "information",
+"file": "UZ road sign 5.32.2.svg"
+},
+"5.32.3": {
+"family": "information",
+"file": "UZ road sign 5.32.3.svg"
+},
+"5.40": {
+"family": "information",
+"file": "5.40 Uzbekistan road sign.svg"
+},
+"5.41": {
+"family": "information",
+"file": "UZ road sign 5.41.svg"
+},
+"5.42": {
+"family": "information",
+"file": "UZ road sign 5.42.svg"
+},
+"5.43": {
+"family": "information",
+"file": "UZ road sign 5.43.svg"
+},
+"5.46": {
+"family": "information",
+"file": "UZ road sign 5.46.svg"
+},
+"5.47": {
+"family": "information",
+"file": "UZ road sign 5.47.svg"
+},
+"5.47.1": {
+"family": "information",
+"file": "UZ road sign 5.47.1.svg"
+},
+"5.47.2": {
+"family": "information",
+"file": "UZ road sign 5.47.2.svg"
+},
+"6.12": {
+"family": "information",
+"file": "UZ road sign 6.12.svg"
+},
+"6.13": {
+"family": "information",
+"file": "6.13 Uzbekistan road sign.svg"
+},
+"6.15": {
+"family": "information",
+"file": "6.15 Uzbekistan road sign.svg"
+},
+"6.17": {
+"family": "information",
+"file": "UZ road sign 6.17.svg"
+},
+"6.18": {
+"family": "information",
+"file": "UZ road sign 6.18.svg"
+},
+"6.19": {
+"family": "information",
+"file": "UZ road sign 6.19.svg"
+},
+"6.20": {
+"family": "information",
+"file": "UZ road sign 6.20.svg"
+},
+"6.21": {
+"family": "information",
+"file": "UZ road sign 6.21.svg"
+},
+"6.22": {
+"family": "information",
+"file": "UZ road sign 6.22.svg"
+},
+"6.23": {
+"family": "information",
+"file": "UZ road sign 6.23.svg"
+},
+"6.24": {
+"family": "information",
+"file": "UZ road sign 6.24.svg"
+},
+"6.25": {
+"family": "information",
+"file": "UZ road sign 6.25.svg"
+},
+"6.26": {
+"family": "information",
+"file": "UZ road sign 6.26.svg"
+},
+"6.27": {
+"family": "information",
+"file": "UZ road sign 6.27.svg"
+},
+"6.28": {
+"family": "information",
+"file": "UZ road sign 6.28.svg"
+},
+"6.3.3": {
+"family": "information",
+"file": "UZ road sign 6.3.3.svg"
+},
+"7.1.1": {
+"family": "service",
+"file": "7.1.1 Uzbekistan road sign.svg"
+},
+"7.1.2": {
+"family": "service",
+"file": "7.1.2 Uzbekistan road sign.svg"
+},
+"7.1.3": {
+"family": "service",
+"file": "7.1.3 Uzbekistan road sign.svg"
+},
+"7.1.4": {
+"family": "service",
+"file": "7.1.4 Uzbekistan road sign.svg"
+},
+"7.11": {
+"family": "service",
+"file": "7.11 Uzbekistan road sign.svg"
+},
+"7.2.1": {
+"family": "service",
+"file": "7.2.1 Uzbekistan road sign.svg"
+},
+"7.2.5": {
+"family": "service",
+"file": "7.2.5 Uzbekistan road sign.svg"
+},
+"7.2.6": {
+"family": "service",
+"file": "7.2.6 Uzbekistan road sign.svg"
+},
+"7.20": {
+"family": "service",
+"file": "7.20 Uzbekistan road sign.svg"
+},
+"7.23": {
+"family": "service",
+"file": "UZ road sign 7.23 C.svg"
+},
+"7.24": {
+"family": "service",
+"file": "7.24 Uzbekistan road sign.svg"
+},
+"7.25": {
+"family": "service",
+"file": "7.25 Uzbekistan road sign.svg"
+},
+"7.26": {
+"family": "service",
+"file": "7.26 Uzbekistan road sign.svg"
+},
+"7.4.10": {
+"family": "service",
+"file": "7.4.10 Uzbekistan road sign.svg"
+},
+"7.5.3": {
+"family": "service",
+"file": "7.5.3 Uzbekistan road sign.svg"
+},
+"7.5.7": {
+"family": "service",
+"file": "7.5.7 Uzbekistan road sign.svg"
+},
+"7.7": {
+"family": "service",
+"file": "7.7 Uzbekistan road sign.svg"
+},
+"7.9": {
+"family": "service",
+"file": "7.9 Uzbekistan road sign.svg"
+}
+}
