@@ -38,6 +38,7 @@ Exam facts come from
 | [15-road-sign-catalogue.md](15-road-sign-catalogue.md) | Structured road-sign / marking / controller-gesture / traffic-light catalogues + search/filter |
 | [16-frontend-redesign.md](16-frontend-redesign.md) | Full Mini App redesign: audit, bottom-nav, design tokens/system, all screens, states, Telegram UX, mock mode, a11y, plan |
 | [17-product-expansion.md](17-product-expansion.md) | Competitor-density feature matrix + per-feature analysis + roadmap (Core / v1.1 / v2) |
+| [18-theory-production-completion.md](18-theory-production-completion.md) | Finish Theory end-to-end: verified built-in content, complete visual catalogues, progress/favorites, Theory↔Practice, full Admin CRUD, archive/remove semantics, completeness tests |
 
 ## Locked v1 decisions
 
