@@ -505,3 +505,120 @@ export interface FullProfileOut {
   timezone: string;
   onboarding_completed: boolean;
 }
+
+// ---- Admin Theory studio (docs/spec/19): list items + content-input types ----
+// Server-side role gating is authoritative; these types only shape the admin UI.
+export interface AdminLifecycleFields {
+  lifecycle_status: string;
+  current_version_id: string | null;
+  latest_version_id: string | null;
+}
+export type AdminSignListItem = SignCard & AdminLifecycleFields;
+export type AdminMarkingListItem = MarkingCard & AdminLifecycleFields;
+export type AdminGestureListItem = GestureCard & AdminLifecycleFields;
+export type AdminLightListItem = LightCard & AdminLifecycleFields;
+export type AdminSectionListItem = TheorySectionCard & AdminLifecycleFields;
+export type AdminArticleListItem = TheoryArticleCard & AdminLifecycleFields & { section_id: string };
+
+// Create (identity) + content inputs — mirror app/api/theory_schemas.py.
+export interface SignCreateInput {
+  official_code: string;
+  family: string;
+  media_id?: string | null;
+  position?: number;
+}
+export interface SignContentInput {
+  name: string;
+  meaning: string;
+  driver_action: string;
+  important?: string | null;
+  exam_trap?: string | null;
+  memory_tip?: string | null;
+  keywords?: string | null;
+  media_id?: string | null;
+  ai_assisted?: boolean;
+  rule_codes: string[];
+  question_ids?: string[];
+}
+export interface MarkingCreateInput {
+  group: string;
+  code?: string | null;
+  media_id?: string | null;
+  position?: number;
+}
+export interface MarkingContentInput {
+  name: string;
+  meaning: string;
+  can_cross?: string | null;
+  can_stop_park?: string | null;
+  conflict_rule?: string | null;
+  exam_trap?: string | null;
+  memory_tip?: string | null;
+  keywords?: string | null;
+  media_id?: string | null;
+  ai_assisted?: boolean;
+  rule_codes: string[];
+}
+export interface GestureCreateInput {
+  code?: string | null;
+  media_id?: string | null;
+  animation_media_id?: string | null;
+  position?: number;
+}
+export interface GestureContentInput {
+  name: string;
+  position_desc: string;
+  allowed: string;
+  forbidden: string;
+  memory_tip?: string | null;
+  keywords?: string | null;
+  media_id?: string | null;
+  animation_media_id?: string | null;
+  ai_assisted?: boolean;
+  rule_codes: string[];
+}
+export interface LightCreateInput {
+  kind: string;
+  media_id?: string | null;
+  position?: number;
+}
+export interface LightContentInput {
+  title: string;
+  meaning: string;
+  movement_permitted?: string | null;
+  direction_permitted?: string | null;
+  exceptions?: string | null;
+  typical_exam_situation?: string | null;
+  keywords?: string | null;
+  media_id?: string | null;
+  ai_assisted?: boolean;
+  rule_codes: string[];
+}
+
+export interface TheoryVersionOut {
+  id: string;
+  version: number;
+  status: string;
+  authored_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  approved_by_user_id: string | null;
+  verified_at: string | null;
+}
+export type SignCreateOut = TheoryVersionOut & { road_sign_id: string };
+export type MarkingCreateOut = TheoryVersionOut & { road_marking_id: string };
+export type GestureCreateOut = TheoryVersionOut & { gesture_id: string };
+export type LightCreateOut = TheoryVersionOut & { light_id: string };
+
+export interface ReviewQueueRow {
+  version_id: string;
+  container_id: string;
+  version: number;
+  status: string;
+}
+export interface ReviewQueueOut {
+  articles: ReviewQueueRow[];
+  signs: ReviewQueueRow[];
+  markings: ReviewQueueRow[];
+  gestures: ReviewQueueRow[];
+  lights: ReviewQueueRow[];
+}

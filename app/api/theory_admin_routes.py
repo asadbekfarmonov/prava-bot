@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.admin_deps import require_role
 from app.api.deps import DbSession
@@ -27,6 +27,7 @@ from app.api.theory_schemas import (
 )
 from app.domain.enums import AdminRole
 from app.domain.models import User
+from app.services import theory as theory_service
 from app.services import theory_admin
 
 router = APIRouter(prefix="/api/admin/theory")
@@ -285,3 +286,64 @@ def set_verified(entity: str, version_id: str, user: ReviewerUser, db: DbSession
 @router.get("/review-queue")
 def review_queue(user: ReviewerUser, db: DbSession) -> dict:
     return theory_admin.review_queue(db)
+
+
+# --------------------------------------------------------------------------- #
+# Admin list endpoints (Gap 2, docs/spec/19): browse drafts + non-published
+# content for editing. AuthorUser-gated; students keep /api/theory/* which is
+# published-only and never exposes include_unpublished (security invariant).
+# --------------------------------------------------------------------------- #
+@router.get("/sections")
+def admin_list_sections(
+    user: AuthorUser, db: DbSession, include_unpublished: bool = Query(default=True)
+) -> dict:
+    return {"sections": theory_service.list_sections(db, include_unpublished=include_unpublished)}
+
+
+@router.get("/articles")
+def admin_list_articles(
+    user: AuthorUser,
+    db: DbSession,
+    section_id: str | None = Query(default=None),
+    include_unpublished: bool = Query(default=True),
+) -> dict:
+    return {
+        "articles": theory_service.list_articles(
+            db, section_id=section_id, include_unpublished=include_unpublished
+        )
+    }
+
+
+@router.get("/signs")
+def admin_list_signs(
+    user: AuthorUser,
+    db: DbSession,
+    family: str | None = Query(default=None),
+    include_unpublished: bool = Query(default=True),
+) -> dict:
+    return {
+        "signs": theory_service.list_signs(
+            db, family=family, include_unpublished=include_unpublished
+        )
+    }
+
+
+@router.get("/markings")
+def admin_list_markings(
+    user: AuthorUser, db: DbSession, include_unpublished: bool = Query(default=True)
+) -> dict:
+    return {"markings": theory_service.list_markings(db, include_unpublished=include_unpublished)}
+
+
+@router.get("/gestures")
+def admin_list_gestures(
+    user: AuthorUser, db: DbSession, include_unpublished: bool = Query(default=True)
+) -> dict:
+    return {"gestures": theory_service.list_gestures(db, include_unpublished=include_unpublished)}
+
+
+@router.get("/lights")
+def admin_list_lights(
+    user: AuthorUser, db: DbSession, include_unpublished: bool = Query(default=True)
+) -> dict:
+    return {"lights": theory_service.list_lights(db, include_unpublished=include_unpublished)}

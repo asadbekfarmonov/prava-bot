@@ -30,6 +30,7 @@ from app.domain.exam_config import get_theory_config
 from app.domain.models import (
     ControllerGesture,
     ControllerGestureTranslation,
+    ControllerGestureVersion,
     MockAnswer,
     PracticeAnswer,
     PracticeSession,
@@ -38,6 +39,7 @@ from app.domain.models import (
     QuestionVersion,
     RoadMarking,
     RoadMarkingTranslation,
+    RoadMarkingVersion,
     RoadSign,
     RoadSignQuestionLink,
     RoadSignTranslation,
@@ -57,6 +59,7 @@ from app.domain.models import (
     TheorySectionTranslation,
     TrafficLightState,
     TrafficLightStateTranslation,
+    TrafficLightStateVersion,
     User,
 )
 
@@ -101,6 +104,16 @@ def _rule_out(db: Session, rule_id: str, rule_version: int | None = None) -> dic
     }
 
 
+def _latest_version_id(db: Session, version_model, fk_attr: str, container_id: str) -> str | None:
+    """current_version_id if published, else the highest-version row for this container."""
+    return db.scalar(
+        select(version_model.id)
+        .where(getattr(version_model, fk_attr) == container_id)
+        .order_by(version_model.version.desc())
+        .limit(1)
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Sections
 # --------------------------------------------------------------------------- #
@@ -113,7 +126,9 @@ def _section_translation(db: Session, section_id: str) -> TheorySectionTranslati
     )
 
 
-def _section_out(db: Session, section: TheorySection, *, user: User | None = None) -> dict:
+def _section_out(
+    db: Session, section: TheorySection, *, user: User | None = None, admin: bool = False
+) -> dict:
     tr = _section_translation(db, section.id)
     published_articles = list(
         db.scalars(
@@ -133,6 +148,12 @@ def _section_out(db: Session, section: TheorySection, *, user: User | None = Non
         "subtitle": tr.subtitle if tr else "",
         "article_count": len(published_articles),
     }
+    if admin:
+        # Sections carry translations directly (no version table); expose lifecycle
+        # status for the admin studio. current/latest version ids are N/A here.
+        out["lifecycle_status"] = section.status.value
+        out["current_version_id"] = None
+        out["latest_version_id"] = None
     if user is not None:
         viewed = _count_progress_in(db, user, TheoryTargetType.ARTICLE,
                                     [a.id for a in published_articles])
@@ -140,15 +161,15 @@ def _section_out(db: Session, section: TheorySection, *, user: User | None = Non
     return out
 
 
-def list_sections(db: Session, *, user: User | None = None) -> list[dict]:
-    sections = list(
-        db.scalars(
-            select(TheorySection)
-            .where(TheorySection.status == VersionStatus.PUBLISHED)
-            .order_by(TheorySection.position, TheorySection.slug)
-        )
-    )
-    return [_section_out(db, s, user=user) for s in sections]
+def list_sections(
+    db: Session, *, user: User | None = None, include_unpublished: bool = False
+) -> list[dict]:
+    stmt = select(TheorySection)
+    if not include_unpublished:
+        stmt = stmt.where(TheorySection.status == VersionStatus.PUBLISHED)
+    stmt = stmt.order_by(TheorySection.position, TheorySection.slug)
+    sections = list(db.scalars(stmt))
+    return [_section_out(db, s, user=user, admin=include_unpublished) for s in sections]
 
 
 def get_section(db: Session, slug: str, *, user: User | None = None) -> dict:
@@ -186,11 +207,16 @@ def _article_translation(db: Session, article_version_id: str) -> TheoryArticleT
     )
 
 
-def _article_card(db: Session, article: TheoryArticle, *, user: User | None = None) -> dict:
+def _article_card(
+    db: Session, article: TheoryArticle, *, user: User | None = None, admin: bool = False
+) -> dict:
     title = ""
     summary = ""
-    if article.current_version_id:
-        tr = _article_translation(db, article.current_version_id)
+    version_id = article.current_version_id
+    if admin and version_id is None:
+        version_id = _latest_version_id(db, TheoryArticleVersion, "article_id", article.id)
+    if version_id:
+        tr = _article_translation(db, version_id)
         if tr:
             title, summary = tr.title, tr.summary
     card = {
@@ -201,11 +227,36 @@ def _article_card(db: Session, article: TheoryArticle, *, user: User | None = No
         "title": title,
         "summary": summary,
     }
+    if admin:
+        card["section_id"] = article.section_id
+        card["lifecycle_status"] = article.lifecycle_status.value
+        card["current_version_id"] = article.current_version_id
+        card["latest_version_id"] = version_id
     if user is not None:
         card["progress_state"] = _current_progress_state(
             db, user, TheoryTargetType.ARTICLE, article.id
         )
     return card
+
+
+def list_articles(
+    db: Session,
+    *,
+    section_id: str | None = None,
+    include_unpublished: bool = False,
+) -> list[dict]:
+    """Flat article list for the admin studio (no student equivalent as a flat list).
+
+    include_unpublished=False keeps the student invariant (published-only); True
+    drops the status filter and resolves draft display text from the latest version.
+    """
+    stmt = select(TheoryArticle)
+    if section_id:
+        stmt = stmt.where(TheoryArticle.section_id == section_id)
+    if not include_unpublished:
+        stmt = stmt.where(TheoryArticle.lifecycle_status == VersionStatus.PUBLISHED)
+    stmt = stmt.order_by(TheoryArticle.position, TheoryArticle.slug)
+    return [_article_card(db, a, admin=include_unpublished) for a in db.scalars(stmt)]
 
 
 def _block_out(db: Session, block: TheoryContentBlock) -> dict:
@@ -296,23 +347,35 @@ def _sign_translation(db: Session, version_id: str) -> RoadSignTranslation | Non
     )
 
 
-def _sign_card(db: Session, sign: RoadSign) -> dict:
+def _sign_card(db: Session, sign: RoadSign, *, admin: bool = False) -> dict:
     name = ""
-    if sign.current_version_id:
-        tr = _sign_translation(db, sign.current_version_id)
+    version_id = sign.current_version_id
+    if admin and version_id is None:
+        version_id = _latest_version_id(db, RoadSignVersion, "road_sign_id", sign.id)
+    if version_id:
+        tr = _sign_translation(db, version_id)
         if tr:
             name = tr.name
-    return {
+    card = {
         "id": sign.id,
         "code": sign.official_code,
         "family": sign.family.value,
         "name": name,
         "media_url": _media_url(db, sign.media_id),
     }
+    if admin:
+        card["lifecycle_status"] = sign.lifecycle_status.value
+        card["current_version_id"] = sign.current_version_id
+        card["latest_version_id"] = version_id
+    return card
 
 
-def list_signs(db: Session, *, family: str | None = None) -> list[dict]:
-    stmt = select(RoadSign).where(RoadSign.lifecycle_status == VersionStatus.PUBLISHED)
+def list_signs(
+    db: Session, *, family: str | None = None, include_unpublished: bool = False
+) -> list[dict]:
+    stmt = select(RoadSign)
+    if not include_unpublished:
+        stmt = stmt.where(RoadSign.lifecycle_status == VersionStatus.PUBLISHED)
     if family:
         try:
             fam = RoadSignFamily(family)
@@ -322,7 +385,7 @@ def list_signs(db: Session, *, family: str | None = None) -> list[dict]:
             ) from exc
         stmt = stmt.where(RoadSign.family == fam)
     stmt = stmt.order_by(RoadSign.position, RoadSign.official_code)
-    return [_sign_card(db, s) for s in db.scalars(stmt)]
+    return [_sign_card(db, s, admin=include_unpublished) for s in db.scalars(stmt)]
 
 
 def get_sign(db: Session, code: str, *, user: User | None = None) -> dict:
@@ -366,34 +429,37 @@ def get_sign(db: Session, code: str, *, user: User | None = None) -> dict:
 # --------------------------------------------------------------------------- #
 # Catalogue: markings / gestures / lights (list + detail)
 # --------------------------------------------------------------------------- #
-def list_markings(db: Session) -> list[dict]:
-    rows = list(
-        db.scalars(
-            select(RoadMarking)
-            .where(RoadMarking.lifecycle_status == VersionStatus.PUBLISHED)
-            .order_by(RoadMarking.position)
-        )
-    )
+def list_markings(db: Session, *, include_unpublished: bool = False) -> list[dict]:
+    stmt = select(RoadMarking)
+    if not include_unpublished:
+        stmt = stmt.where(RoadMarking.lifecycle_status == VersionStatus.PUBLISHED)
+    rows = list(db.scalars(stmt.order_by(RoadMarking.position)))
     out = []
     for m in rows:
         name = ""
-        if m.current_version_id:
+        version_id = m.current_version_id
+        if include_unpublished and version_id is None:
+            version_id = _latest_version_id(db, RoadMarkingVersion, "road_marking_id", m.id)
+        if version_id:
             tr = db.scalar(
                 select(RoadMarkingTranslation).where(
-                    RoadMarkingTranslation.road_marking_version_id == m.current_version_id,
+                    RoadMarkingTranslation.road_marking_version_id == version_id,
                     RoadMarkingTranslation.language == _LANG,
                 )
             )
             name = tr.name if tr else ""
-        out.append(
-            {
-                "id": m.id,
-                "code": m.code,
-                "group": m.marking_group.value,
-                "name": name,
-                "media_url": _media_url(db, m.media_id),
-            }
-        )
+        card = {
+            "id": m.id,
+            "code": m.code,
+            "group": m.marking_group.value,
+            "name": name,
+            "media_url": _media_url(db, m.media_id),
+        }
+        if include_unpublished:
+            card["lifecycle_status"] = m.lifecycle_status.value
+            card["current_version_id"] = m.current_version_id
+            card["latest_version_id"] = version_id
+        out.append(card)
     return out
 
 
@@ -437,34 +503,37 @@ def get_marking(db: Session, marking_id: str) -> dict:
     }
 
 
-def list_gestures(db: Session) -> list[dict]:
-    rows = list(
-        db.scalars(
-            select(ControllerGesture)
-            .where(ControllerGesture.lifecycle_status == VersionStatus.PUBLISHED)
-            .order_by(ControllerGesture.position)
-        )
-    )
+def list_gestures(db: Session, *, include_unpublished: bool = False) -> list[dict]:
+    stmt = select(ControllerGesture)
+    if not include_unpublished:
+        stmt = stmt.where(ControllerGesture.lifecycle_status == VersionStatus.PUBLISHED)
+    rows = list(db.scalars(stmt.order_by(ControllerGesture.position)))
     out = []
     for g in rows:
         name = ""
-        if g.current_version_id:
+        version_id = g.current_version_id
+        if include_unpublished and version_id is None:
+            version_id = _latest_version_id(db, ControllerGestureVersion, "gesture_id", g.id)
+        if version_id:
             tr = db.scalar(
                 select(ControllerGestureTranslation).where(
-                    ControllerGestureTranslation.gesture_version_id == g.current_version_id,
+                    ControllerGestureTranslation.gesture_version_id == version_id,
                     ControllerGestureTranslation.language == _LANG,
                 )
             )
             name = tr.name if tr else ""
-        out.append(
-            {
-                "id": g.id,
-                "code": g.code,
-                "name": name,
-                "media_url": _media_url(db, g.media_id),
-                "animation_url": _media_url(db, g.animation_media_id),
-            }
-        )
+        card = {
+            "id": g.id,
+            "code": g.code,
+            "name": name,
+            "media_url": _media_url(db, g.media_id),
+            "animation_url": _media_url(db, g.animation_media_id),
+        }
+        if include_unpublished:
+            card["lifecycle_status"] = g.lifecycle_status.value
+            card["current_version_id"] = g.current_version_id
+            card["latest_version_id"] = version_id
+        out.append(card)
     return out
 
 
@@ -506,33 +575,36 @@ def get_gesture(db: Session, gesture_id: str) -> dict:
     }
 
 
-def list_lights(db: Session) -> list[dict]:
-    rows = list(
-        db.scalars(
-            select(TrafficLightState)
-            .where(TrafficLightState.lifecycle_status == VersionStatus.PUBLISHED)
-            .order_by(TrafficLightState.position)
-        )
-    )
+def list_lights(db: Session, *, include_unpublished: bool = False) -> list[dict]:
+    stmt = select(TrafficLightState)
+    if not include_unpublished:
+        stmt = stmt.where(TrafficLightState.lifecycle_status == VersionStatus.PUBLISHED)
+    rows = list(db.scalars(stmt.order_by(TrafficLightState.position)))
     out = []
     for light in rows:
         title = ""
-        if light.current_version_id:
+        version_id = light.current_version_id
+        if include_unpublished and version_id is None:
+            version_id = _latest_version_id(db, TrafficLightStateVersion, "light_id", light.id)
+        if version_id:
             tr = db.scalar(
                 select(TrafficLightStateTranslation).where(
-                    TrafficLightStateTranslation.light_version_id == light.current_version_id,
+                    TrafficLightStateTranslation.light_version_id == version_id,
                     TrafficLightStateTranslation.language == _LANG,
                 )
             )
             title = tr.title if tr else ""
-        out.append(
-            {
-                "id": light.id,
-                "kind": light.kind.value,
-                "title": title,
-                "media_url": _media_url(db, light.media_id),
-            }
-        )
+        card = {
+            "id": light.id,
+            "kind": light.kind.value,
+            "title": title,
+            "media_url": _media_url(db, light.media_id),
+        }
+        if include_unpublished:
+            card["lifecycle_status"] = light.lifecycle_status.value
+            card["current_version_id"] = light.current_version_id
+            card["latest_version_id"] = version_id
+        out.append(card)
     return out
 
 

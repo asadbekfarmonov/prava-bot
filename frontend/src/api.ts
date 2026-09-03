@@ -201,5 +201,114 @@ export const adminApi = {
       throw new Error(detail);
     }
     return (await res.json()) as import("./types").MediaOut;
-  }
+  },
+
+  // ---- Theory studio (docs/spec/19). All server-side role-gated. ----
+  theoryListSections: (includeUnpublished = true) =>
+    request<{ sections: import("./types").AdminSectionListItem[] }>(
+      `/api/admin/theory/sections?include_unpublished=${String(includeUnpublished)}`
+    ),
+  theoryListArticles: (sectionId?: string, includeUnpublished = true) => {
+    const p = new URLSearchParams();
+    if (sectionId) p.set("section_id", sectionId);
+    p.set("include_unpublished", String(includeUnpublished));
+    return request<{ articles: import("./types").AdminArticleListItem[] }>(
+      `/api/admin/theory/articles?${p.toString()}`
+    );
+  },
+  theoryListSigns: (family?: string, includeUnpublished = true) => {
+    const p = new URLSearchParams();
+    if (family) p.set("family", family);
+    p.set("include_unpublished", String(includeUnpublished));
+    return request<{ signs: import("./types").AdminSignListItem[] }>(
+      `/api/admin/theory/signs?${p.toString()}`
+    );
+  },
+  theoryListMarkings: (includeUnpublished = true) =>
+    request<{ markings: import("./types").AdminMarkingListItem[] }>(
+      `/api/admin/theory/markings?include_unpublished=${String(includeUnpublished)}`
+    ),
+  theoryListGestures: (includeUnpublished = true) =>
+    request<{ gestures: import("./types").AdminGestureListItem[] }>(
+      `/api/admin/theory/gestures?include_unpublished=${String(includeUnpublished)}`
+    ),
+  theoryListLights: (includeUnpublished = true) =>
+    request<{ lights: import("./types").AdminLightListItem[] }>(
+      `/api/admin/theory/lights?include_unpublished=${String(includeUnpublished)}`
+    ),
+
+  // Signs
+  theoryCreateSign: (payload: import("./types").SignCreateInput) =>
+    request<import("./types").SignCreateOut>("/api/admin/theory/signs", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  theoryEditSign: (id: string, payload: import("./types").SignContentInput) =>
+    request<import("./types").SignCreateOut>(`/api/admin/theory/signs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  theorySubmitSign: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/sign-versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  theoryReviewSign: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/sign-versions/${vid}/review`, { method: "POST", body: "{}" }),
+  theoryPublishSign: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/sign-versions/${vid}/publish`, { method: "POST", body: "{}" }),
+
+  // Markings
+  theoryCreateMarking: (payload: import("./types").MarkingCreateInput) =>
+    request<import("./types").MarkingCreateOut>("/api/admin/theory/markings", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  theoryEditMarking: (id: string, payload: import("./types").MarkingContentInput) =>
+    request<import("./types").MarkingCreateOut>(`/api/admin/theory/markings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  theorySubmitMarking: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/marking-versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  theoryReviewMarking: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/marking-versions/${vid}/review`, { method: "POST", body: "{}" }),
+  theoryPublishMarking: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/marking-versions/${vid}/publish`, { method: "POST", body: "{}" }),
+
+  // Gestures
+  theoryCreateGesture: (payload: import("./types").GestureCreateInput) =>
+    request<import("./types").GestureCreateOut>("/api/admin/theory/gestures", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  theoryEditGesture: (id: string, payload: import("./types").GestureContentInput) =>
+    request<import("./types").GestureCreateOut>(`/api/admin/theory/gestures/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  theorySubmitGesture: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/gesture-versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  theoryReviewGesture: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/gesture-versions/${vid}/review`, { method: "POST", body: "{}" }),
+  theoryPublishGesture: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/gesture-versions/${vid}/publish`, { method: "POST", body: "{}" }),
+
+  // Lights
+  theoryCreateLight: (payload: import("./types").LightCreateInput) =>
+    request<import("./types").LightCreateOut>("/api/admin/theory/lights", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  theoryEditLight: (id: string, payload: import("./types").LightContentInput) =>
+    request<import("./types").LightCreateOut>(`/api/admin/theory/lights/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+  theorySubmitLight: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/light-versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  theoryReviewLight: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/light-versions/${vid}/review`, { method: "POST", body: "{}" }),
+  theoryPublishLight: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/light-versions/${vid}/publish`, { method: "POST", body: "{}" }),
+
+  theoryReviewQueue: () =>
+    request<import("./types").ReviewQueueOut>("/api/admin/theory/review-queue")
 };
