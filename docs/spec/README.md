@@ -40,6 +40,7 @@ Exam facts come from
 | [17-product-expansion.md](17-product-expansion.md) | Competitor-density feature matrix + per-feature analysis + roadmap (Core / v1.1 / v2) |
 | [18-theory-production-completion.md](18-theory-production-completion.md) | Finish Theory end-to-end: verified built-in content, complete visual catalogues, progress/favorites, Theory↔Practice, full Admin CRUD, archive/remove semantics, completeness tests |
 | [19-admin-studio-mobile-first.md](19-admin-studio-mobile-first.md) | Full mobile-first Admin Studio: dedicated navigation, quick-create, questions, training tests, Theory, Rules, media, review/reports, responsive behavior and acceptance tests |
+| [20-admin-implementation-runbook.md](20-admin-implementation-runbook.md) | **Normative exact Admin implementation order**: locked routes, frontend files, assessment models/APIs, mobile breakpoints, phase gates, E2E and final user journeys |
 
 ## Locked v1 decisions
 
