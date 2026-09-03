@@ -79,3 +79,68 @@ body.admin-open .ui-app { max-width: none; width: 100%; padding-left: 0; padding
   .admin-sidebar__item.is-active { background: var(--primary-soft, #eef2ff); color: var(--primary, #2563eb); }
   .admin-content { padding-bottom: 24px; }
 }
+
+/* ---------------- Phase 2: shared Admin primitives ---------------- */
+.admin-pageheader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.admin-pageheader__title { margin: 0; font-size: 20px; }
+.admin-pageheader__sub { margin: 4px 0 0; color: var(--text-muted, #667085); font-size: 13px; }
+.admin-pageheader__actions { flex: 0 0 auto; }
+
+.admin-listcard { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 14px; border: 1px solid var(--border, #e6e8ee); border-radius: 12px;
+  background: var(--surface, #fff); margin-bottom: 10px; min-height: 44px; }
+.admin-listcard--tap { cursor: pointer; }
+.admin-listcard__main { flex: 1; min-width: 0; }
+.admin-listcard__titlerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-listcard__title { font-weight: 600; overflow-wrap: anywhere; }
+.admin-listcard__sub { color: var(--text, #101828); font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; }
+.admin-listcard__meta { color: var(--text-muted, #667085); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.admin-listcard__right { flex: 0 0 auto; }
+
+.admin-sticky-actions { position: sticky; bottom: 0; display: flex; gap: 8px; flex-wrap: wrap;
+  min-height: 60px; align-items: center; padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface, #fff); border-top: 1px solid var(--border, #e6e8ee); }
+
+.admin-searchfield { width: 100%; min-height: 44px; font-size: 16px; padding: 10px 12px;
+  border: 1px solid var(--border, #e6e8ee); border-radius: 12px; background: var(--bg, #f8fafc); }
+
+.admin-chip { min-height: 36px; padding: 6px 12px; border-radius: 999px; font-size: 13px;
+  border: 1px solid var(--border, #e6e8ee); background: var(--surface, #fff); color: var(--text, #101828); }
+.admin-chip.is-active { background: var(--primary, #2563eb); color: #fff; border-color: var(--primary, #2563eb); }
+
+.admin-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--border, #eef0f4); color: var(--text-muted, #475467); white-space: nowrap; }
+.admin-badge--published { background: #dcfce7; color: #166534; }
+.admin-badge--draft { background: #eef0f4; color: #475467; }
+.admin-badge--needs_review { background: #fef3c7; color: #92400e; }
+.admin-badge--reviewed { background: #dbeafe; color: #1e40af; }
+.admin-badge--needs_reverification { background: #fee2e2; color: #991b1b; }
+.admin-badge--superseded, .admin-badge--archived { background: #e5e7eb; color: #6b7280; }
+
+.admin-formrow { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.admin-formrow__label { font-size: 13px; font-weight: 600; color: var(--text, #101828); }
+.admin-formrow__hint { font-size: 12px; color: var(--text-muted, #667085); }
+.admin-input { width: 100%; min-height: 44px; font-size: 16px; padding: 10px 12px;
+  border: 1px solid var(--border, #e6e8ee); border-radius: 12px; background: var(--bg, #f8fafc); color: var(--text, #101828); }
+textarea.admin-input { min-height: 88px; resize: vertical; }
+
+.admin-btn { min-height: 44px; padding: 0 16px; border-radius: 12px; font-weight: 600; border: 1px solid transparent; }
+.admin-btn--primary { background: var(--primary, #2563eb); color: #fff; }
+.admin-btn--secondary { background: var(--surface, #fff); color: var(--text, #101828); border-color: var(--border, #e6e8ee); }
+.admin-btn--danger { background: #dc2626; color: #fff; }
+
+.admin-toast { display: flex; align-items: center; gap: 12px; margin: 10px 0; padding: 10px 14px;
+  border-radius: 12px; font-size: 14px; }
+.admin-toast--saving { background: #eef2ff; color: #3730a3; }
+.admin-toast--saved { background: #dcfce7; color: #166534; }
+.admin-toast--error { background: #fee2e2; color: #991b1b; }
+.admin-toast__retry { min-height: 36px; border: none; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; }
+
+.admin-state { padding: 24px 16px; text-align: center; color: var(--text-muted, #667085); }
+.admin-state--error { color: #991b1b; }
+
+/* Visible focus for all interactive Admin elements (accessibility, Phase 2 gate). */
+.admin-shell button:focus-visible, .admin-input:focus-visible, .admin-searchfield:focus-visible,
+.admin-chip:focus-visible, .admin-listcard--tap:focus-visible {
+  outline: 2px solid var(--primary, #2563eb); outline-offset: 2px;
+}
