@@ -39,6 +39,7 @@ Exam facts come from
 | [16-frontend-redesign.md](16-frontend-redesign.md) | Full Mini App redesign: audit, bottom-nav, design tokens/system, all screens, states, Telegram UX, mock mode, a11y, plan |
 | [17-product-expansion.md](17-product-expansion.md) | Competitor-density feature matrix + per-feature analysis + roadmap (Core / v1.1 / v2) |
 | [18-theory-production-completion.md](18-theory-production-completion.md) | Finish Theory end-to-end: verified built-in content, complete visual catalogues, progress/favorites, Theory↔Practice, full Admin CRUD, archive/remove semantics, completeness tests |
+| [19-admin-studio-mobile-first.md](19-admin-studio-mobile-first.md) | Full mobile-first Admin Studio: dedicated navigation, quick-create, questions, training tests, Theory, Rules, media, review/reports, responsive behavior and acceptance tests |
 
 ## Locked v1 decisions
 
