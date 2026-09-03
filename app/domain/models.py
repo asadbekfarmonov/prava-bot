@@ -22,6 +22,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.base import Base
 from app.domain.enums import (
+    AssessmentAttemptStatus,
+    AssessmentRevealMode,
+    AssessmentSelectionMode,
+    AssessmentStatus,
+    AssessmentType,
     AdminRole,
     Category,
     Language,
@@ -1442,3 +1447,160 @@ class TrafficLightStateRule(TimestampMixin, Base):
 
     light_version: Mapped[TrafficLightStateVersion] = relationship(back_populates="rule_links")
     rule: Mapped[Rule] = relationship()
+
+
+# --------------------------------------------------------------------------- #
+# Training assessments (docs/spec/20 Phase 7). Separate from the official
+# MockTemplate/MockAttempt system; ExamConfig is never touched by these.
+# --------------------------------------------------------------------------- #
+class Assessment(TimestampMixin, Base):
+    __tablename__ = "assessments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    slug: Mapped[str] = mapped_column(String(160), unique=True, nullable=False, index=True)
+    type: Mapped["AssessmentType"] = mapped_column(
+        Enum(AssessmentType, native_enum=False, length=32), nullable=False
+    )
+    status: Mapped["AssessmentStatus"] = mapped_column(
+        Enum(AssessmentStatus, native_enum=False, length=16),
+        default=AssessmentStatus.DRAFT, nullable=False, index=True,
+    )
+    current_version_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("assessment_versions.id", use_alter=True, name="fk_assessment_current_version"),
+        nullable=True,
+    )
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    current_version: Mapped["AssessmentVersion | None"] = relationship(
+        foreign_keys=[current_version_id], post_update=True
+    )
+    versions: Mapped[list["AssessmentVersion"]] = relationship(
+        back_populates="assessment", foreign_keys="AssessmentVersion.assessment_id",
+        cascade="all, delete-orphan",
+    )
+
+
+class AssessmentVersion(TimestampMixin, Base):
+    __tablename__ = "assessment_versions"
+    __table_args__ = (UniqueConstraint("assessment_id", "version", name="uq_assessment_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("assessments.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    selection_mode: Mapped["AssessmentSelectionMode"] = mapped_column(
+        Enum(AssessmentSelectionMode, native_enum=False, length=16), nullable=False
+    )
+    question_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    time_limit_seconds: Mapped[int | None] = mapped_column(Integer)
+    pass_correct: Mapped[int | None] = mapped_column(Integer)
+    show_explanations_after: Mapped["AssessmentRevealMode"] = mapped_column(
+        Enum(AssessmentRevealMode, native_enum=False, length=16),
+        default=AssessmentRevealMode.EACH_ANSWER, nullable=False,
+    )
+    topic_filters_json: Mapped[dict | None] = mapped_column(JSON)
+    difficulty_filters_json: Mapped[dict | None] = mapped_column(JSON)
+    randomize_order: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    status: Mapped["VersionStatus"] = mapped_column(
+        Enum(VersionStatus, native_enum=False, length=32),
+        default=VersionStatus.DRAFT, nullable=False,
+    )
+    authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    assessment: Mapped[Assessment] = relationship(
+        back_populates="versions", foreign_keys=[assessment_id]
+    )
+    questions: Mapped[list["AssessmentQuestion"]] = relationship(
+        back_populates="assessment_version", cascade="all, delete-orphan",
+        order_by="AssessmentQuestion.position",
+    )
+
+
+class AssessmentQuestion(TimestampMixin, Base):
+    __tablename__ = "assessment_questions"
+    __table_args__ = (
+        UniqueConstraint("assessment_version_id", "question_id", name="uq_assessment_q_question"),
+        UniqueConstraint("assessment_version_id", "position", name="uq_assessment_q_position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    assessment_version_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_versions.id"), nullable=False, index=True
+    )
+    question_id: Mapped[str] = mapped_column(ForeignKey("questions.id"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    assessment_version: Mapped[AssessmentVersion] = relationship(back_populates="questions")
+
+
+class AssessmentAttempt(TimestampMixin, Base):
+    __tablename__ = "assessment_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    assessment_version_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_versions.id"), nullable=False, index=True
+    )
+    status: Mapped["AssessmentAttemptStatus"] = mapped_column(
+        Enum(AssessmentAttemptStatus, native_enum=False, length=16),
+        default=AssessmentAttemptStatus.IN_PROGRESS, nullable=False, index=True,
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    question_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    correct_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    passed: Mapped[bool | None] = mapped_column(Boolean)
+
+    questions: Mapped[list["AssessmentAttemptQuestion"]] = relationship(
+        back_populates="attempt", cascade="all, delete-orphan",
+        order_by="AssessmentAttemptQuestion.position",
+    )
+    answers: Mapped[list["AssessmentAnswer"]] = relationship(
+        back_populates="attempt", cascade="all, delete-orphan",
+    )
+
+
+class AssessmentAttemptQuestion(TimestampMixin, Base):
+    __tablename__ = "assessment_attempt_questions"
+    __table_args__ = (
+        UniqueConstraint("assessment_attempt_id", "question_version_id", name="uq_aaq_version"),
+        UniqueConstraint("assessment_attempt_id", "position", name="uq_aaq_position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    assessment_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_attempts.id"), nullable=False, index=True
+    )
+    question_version_id: Mapped[str] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    attempt: Mapped[AssessmentAttempt] = relationship(back_populates="questions")
+
+
+class AssessmentAnswer(TimestampMixin, Base):
+    __tablename__ = "assessment_answers"
+    __table_args__ = (
+        UniqueConstraint("assessment_attempt_id", "question_version_id", name="uq_aa_answer_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    assessment_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("assessment_attempts.id"), nullable=False, index=True
+    )
+    question_version_id: Mapped[str] = mapped_column(
+        ForeignKey("question_versions.id"), nullable=False
+    )
+    selected_option_id: Mapped[str | None] = mapped_column(ForeignKey("answer_options.id"))
+    is_correct: Mapped[bool | None] = mapped_column(Boolean)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    attempt: Mapped[AssessmentAttempt] = relationship(back_populates="answers")

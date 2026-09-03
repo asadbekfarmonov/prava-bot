@@ -244,3 +244,34 @@ THEORY_PROGRESS_ORDER: dict[TheoryProgressState, int] = {
     TheoryProgressState.PRACTISED: 2,
     TheoryProgressState.MASTERED: 3,
 }
+
+
+class AssessmentType(StrEnum):
+    CUSTOM_TEST = "custom_test"
+    PRACTICE_TICKET = "practice_ticket"
+    ENDURANCE_50 = "endurance_50"
+    ENDURANCE_100 = "endurance_100"
+    READINESS_CHALLENGE = "readiness_challenge"
+    DAILY_CHALLENGE = "daily_challenge"
+
+
+class AssessmentSelectionMode(StrEnum):
+    MANUAL = "manual"
+    RANDOM_FILTER = "random_filter"
+
+
+class AssessmentStatus(StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
+class AssessmentAttemptStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+
+
+class AssessmentRevealMode(StrEnum):
+    EACH_ANSWER = "each_answer"
+    COMPLETION = "completion"

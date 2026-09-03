@@ -135,12 +135,16 @@ def create_app() -> FastAPI:
     from app.api.admin_routes import router as admin_router
     from app.api.media_routes import router as media_router
     from app.api.theory_admin_routes import router as theory_admin_router
+    from app.api.assessment_admin_routes import router as assessment_admin_router
+    from app.api.assessment_routes import router as assessment_router
     from app.api.theory_routes import router as theory_router
 
     app.include_router(admin_router)
     app.include_router(media_router)
     app.include_router(theory_router)
     app.include_router(theory_admin_router)
+    app.include_router(assessment_admin_router)
+    app.include_router(assessment_router)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
