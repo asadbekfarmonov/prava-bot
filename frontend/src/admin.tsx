@@ -8,6 +8,7 @@ import type {
   AdminOverview,
   AdminQuestionInput,
   AdminQuestionListItem,
+  AdminBlockInput,
   AdminReport,
   AdminRuleOut,
   GestureContentInput,
@@ -880,29 +881,263 @@ function TheoryList({
   );
 }
 
-function TheorySimpleList({ kind }: { kind: "sections" | "articles" }) {
+const BLOCK_TYPES: { id: import("./types").BlockType; label: string }[] = [
+  { id: "text", label: "Matn" },
+  { id: "rule_callout", label: "Qoida" },
+  { id: "warning", label: "Ogohlantirish" },
+  { id: "memory_tip", label: "Eslatma" },
+  { id: "example", label: "Misol" },
+  { id: "table", label: "Jadval" },
+  { id: "practice_link", label: "Mashq havolasi" },
+  { id: "image", label: "Rasm" },
+  { id: "diagram", label: "Diagramma" }
+];
+
+function BlockEditor({ blocks, onChange }: { blocks: AdminBlockInput[]; onChange: (b: AdminBlockInput[]) => void }) {
+  const add = (type: import("./types").BlockType) => onChange([...blocks, { type, body: "" }]);
+  const patch = (i: number, p: Partial<AdminBlockInput>) => onChange(blocks.map((b, j) => (j === i ? { ...b, ...p } : b)));
+  const remove = (i: number) => onChange(blocks.filter((_, j) => j !== i));
+  const move = (i: number, d: number) => {
+    const j = i + d;
+    if (j < 0 || j >= blocks.length) return;
+    const c = [...blocks];
+    [c[i], c[j]] = [c[j], c[i]];
+    onChange(c);
+  };
+  async function upload(i: number, file: File) {
+    try {
+      const m = await adminApi.uploadMedia(file);
+      patch(i, { media_id: m.id });
+    } catch {
+      /* surfaced by caller flows */
+    }
+  }
+  const isMedia = (t: string) => t === "image" || t === "diagram" || t === "animation";
+  return (
+    <div className="block-editor">
+      <div className="block-add">
+        {BLOCK_TYPES.map((t) => (
+          <button key={t.id} type="button" className="secondary" onClick={() => add(t.id)}>+ {t.label}</button>
+        ))}
+      </div>
+      {blocks.map((b, i) => (
+        <div key={i} className="review-item block-row">
+          <div className="block-head">
+            <strong>{BLOCK_TYPES.find((t) => t.id === b.type)?.label || b.type}</strong>
+            <span>
+              <button type="button" className="secondary" onClick={() => move(i, -1)}>↑</button>
+              <button type="button" className="secondary" onClick={() => move(i, 1)}>↓</button>
+              <button type="button" className="secondary" onClick={() => remove(i)}>o'chirish</button>
+            </span>
+          </div>
+          {isMedia(b.type) ? (
+            <div>
+              <input type="file" onChange={(e) => e.target.files && e.target.files[0] && upload(i, e.target.files[0])} />
+              {b.media_id && <p className="muted">media_id: {b.media_id}</p>}
+              <input placeholder="Izoh (ixtiyoriy)" value={b.body || ""} onChange={(e) => patch(i, { body: e.target.value })} />
+            </div>
+          ) : b.type === "table" ? (
+            <textarea placeholder={'JSON: {"headers":["A","B"],"rows":[["1","2"]]}'} value={b.body || ""} onChange={(e) => patch(i, { body: e.target.value })} />
+          ) : (
+            <textarea placeholder="Matn" value={b.body || ""} onChange={(e) => patch(i, { body: e.target.value })} />
+          )}
+          {b.type === "rule_callout" && (
+            <input placeholder="Qoida kodi (masalan 6.13)" value={b.rule_code || ""} onChange={(e) => patch(i, { rule_code: e.target.value })} />
+          )}
+        </div>
+      ))}
+      {blocks.length === 0 && <p className="muted">Blok qo'shing.</p>}
+    </div>
+  );
+}
+
+function SectionsManager({ canReview }: { canReview: boolean }) {
   const [rows, setRows] = useState<TheoryRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    const p =
-      kind === "sections"
-        ? adminApi.theoryListSections(true).then((r) => r.sections as unknown as TheoryRow[])
-        : adminApi.theoryListArticles(undefined, true).then((r) => r.articles as unknown as TheoryRow[]);
-    p.then(setRows).catch((e) => setErr(String(e.message)));
-  }, [kind]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [slug, setSlug] = useState("");
+  const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
+  const [topic, setTopic] = useState("");
+  const [position, setPosition] = useState(0);
+  const load = useCallback(() => {
+    adminApi.theoryListSections(true).then((r) => setRows(r.sections as unknown as TheoryRow[])).catch((e) => setErr(String(e.message)));
+  }, []);
+  useEffect(load, [load]);
+  async function create() {
+    setErr(null); setMsg(null);
+    try {
+      await adminApi.theoryCreateSection({ slug, title, subtitle, topic: topic || null, position });
+      setMsg("Bo'lim yaratildi"); setSlug(""); setTitle(""); setSubtitle(""); load();
+    } catch (e) { setErr(String((e as Error).message)); }
+  }
+  async function publish(id: string) {
+    setErr(null);
+    try { await adminApi.theoryPublishSection(id); setMsg("Nashr etildi"); load(); }
+    catch (e) { setErr(String((e as Error).message)); }
+  }
   return (
     <div>
-      <p className="explain">
-        {kind === "sections" ? "Bo'limlar" : "Maqolalar"} — ro'yxat (to'liq tahrirlash keyingi bosqichda).
-      </p>
+      <h3>Yangi bo'lim</h3>
+      <label className="muted">Slug</label>
+      <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="masalan: tezlik" />
+      <label className="muted">Sarlavha</label>
+      <input value={title} onChange={(e) => setTitle(e.target.value)} />
+      <label className="muted">Tavsif</label>
+      <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+      <label className="muted">Mavzu (ixtiyoriy)</label>
+      <select value={topic} onChange={(e) => setTopic(e.target.value)}>
+        <option value="">—</option>
+        {TOPIC_KEYS.map((t) => <option key={t} value={t}>{topicLabel(t)}</option>)}
+      </select>
+      <label className="muted">Tartib</label>
+      <input type="number" value={position} onChange={(e) => setPosition(Number(e.target.value))} />
+      <div style={{ height: 8 }} />
+      <button disabled={!slug || !title} onClick={create}>Yaratish</button>
+      {msg && <p className="explain">{msg}</p>}
       {err && <p className="explain">{err}</p>}
+      <h3>Bo'limlar</h3>
       {rows.map((r) => (
         <div key={r.id} className="review-item">
           <p className="muted">{r.slug || r.id} <StatusBadge status={r.lifecycle_status} /></p>
-          <p>{r.title || r.name || "(nomsiz)"}</p>
+          <p>{r.title || "(nomsiz)"}</p>
+          {canReview && r.lifecycle_status !== "published" && (
+            <button className="secondary" onClick={() => publish(r.id)}>Nashr etish</button>
+          )}
         </div>
       ))}
-      {rows.length === 0 && <p className="muted">Element topilmadi</p>}
+      {rows.length === 0 && <p className="muted">Bo'limlar yo'q</p>}
+    </div>
+  );
+}
+
+function ArticlesManager({ canReview }: { canReview: boolean }) {
+  const [articles, setArticles] = useState<TheoryRow[]>([]);
+  const [sections, setSections] = useState<TheoryRow[]>([]);
+  const [mode, setMode] = useState<"list" | "edit">("list");
+  const [articleId, setArticleId] = useState<string | null>(null);
+  const [versionId, setVersionId] = useState<string | null>(null);
+  const [statusNow, setStatusNow] = useState<string | null>(null);
+  const [secId, setSecId] = useState("");
+  const [slug, setSlug] = useState("");
+  const [kind, setKind] = useState("lesson");
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [aiA, setAiA] = useState(true);
+  const [blocks, setBlocks] = useState<AdminBlockInput[]>([]);
+  const [ruleCodes, setRuleCodes] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    adminApi.theoryListArticles(undefined, true).then((r) => setArticles(r.articles as unknown as TheoryRow[])).catch((e) => setErr(String(e.message)));
+  }, []);
+  useEffect(() => {
+    load();
+    adminApi.theoryListSections(true).then((r) => {
+      const s = r.sections as unknown as TheoryRow[];
+      setSections(s);
+      if (s[0]) setSecId(s[0].id);
+    }).catch(() => undefined);
+  }, [load]);
+
+  function resetContent() { setTitle(""); setSummary(""); setAiA(true); setBlocks([]); setRuleCodes([]); }
+
+  async function createArticle() {
+    setErr(null); setMsg(null);
+    try {
+      const r = await adminApi.theoryCreateArticle({ section_id: secId, slug, kind: kind as "lesson" | "reference" | "quick_ref" | "common_mistake" });
+      setArticleId(r.article_id); setVersionId(r.id); setStatusNow(r.status); resetContent(); setMode("edit");
+      setMsg("Maqola yaratildi — mazmun qo'shing.");
+    } catch (e) { setErr(String((e as Error).message)); }
+  }
+
+  function buildBlocks(): AdminBlockInput[] {
+    return blocks.map((b) => {
+      if (b.type === "table") {
+        let data: Record<string, unknown> | null = null;
+        try { data = JSON.parse(b.body || "{}"); } catch { data = null; }
+        return { type: b.type, body: "", data };
+      }
+      return b;
+    });
+  }
+
+  async function saveContent() {
+    if (!articleId) return;
+    setErr(null); setMsg(null);
+    try {
+      const r = await adminApi.theoryEditArticle(articleId, { title, summary, ai_assisted: aiA, blocks: buildBlocks(), rule_codes: ruleCodes, question_ids: [] });
+      setVersionId(r.id); setStatusNow(r.status); setMsg(`Saqlandi (v${r.version}, ${r.status})`); load();
+    } catch (e) { setErr(String((e as Error).message)); }
+  }
+
+  async function transition(k: "submit" | "review" | "publish") {
+    if (!versionId) return;
+    setErr(null);
+    try {
+      const fn = k === "submit" ? adminApi.theorySubmitArticle : k === "review" ? adminApi.theoryReviewArticle : adminApi.theoryPublishArticle;
+      const r = await fn(versionId);
+      setStatusNow(r.status); setMsg(`Amal: ${k} → ${r.status}`); load();
+    } catch (e) { setErr(String((e as Error).message)); }
+  }
+
+  if (mode === "edit") {
+    return (
+      <div>
+        <button type="button" className="secondary" onClick={() => { setMode("list"); setArticleId(null); setVersionId(null); }}>← Ro'yxat</button>
+        <h3>Maqola mazmuni {statusNow && <StatusBadge status={statusNow} />}</h3>
+        <p className="explain">Mavjud maqolani tahrirlash yangi versiya yaratadi. Joriy mazmun oldindan yuklanmaydi — yangi versiya bloklarini kiriting.</p>
+        <label className="muted">Sarlavha</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        <label className="muted">Qisqa mazmun</label>
+        <textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
+        <label><input type="checkbox" checked={aiA} onChange={(e) => setAiA(e.target.checked)} /> AI yordamida (tekshirilishi kerak)</label>
+        <h4>Bloklar</h4>
+        <BlockEditor blocks={blocks} onChange={setBlocks} />
+        <RulePicker selected={ruleCodes} onChange={setRuleCodes} />
+        <div style={{ height: 12 }} />
+        <button onClick={saveContent}>Mazmunni saqlash</button>
+        {versionId && (
+          <div className="review-actions">
+            <button className="secondary" onClick={() => transition("submit")}>Ko'rikka yuborish</button>
+            {canReview && <button className="secondary" onClick={() => transition("review")}>Ko'rildi</button>}
+            {canReview && <button onClick={() => transition("publish")}>Nashr etish</button>}
+          </div>
+        )}
+        {msg && <p className="explain">{msg}</p>}
+        {err && <p className="explain">{err}</p>}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <h3>Yangi maqola</h3>
+      <label className="muted">Bo'lim</label>
+      <select value={secId} onChange={(e) => setSecId(e.target.value)}>
+        {sections.map((s) => <option key={s.id} value={s.id}>{s.title || s.slug || s.id}</option>)}
+      </select>
+      <label className="muted">Slug</label>
+      <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="masalan: tezlik-asoslari" />
+      <label className="muted">Tur</label>
+      <select value={kind} onChange={(e) => setKind(e.target.value)}>
+        <option value="lesson">Dars</option>
+        <option value="reference">Ma'lumotnoma</option>
+        <option value="quick_ref">Tez ma'lumot</option>
+        <option value="common_mistake">Ko'p uchraydigan xato</option>
+      </select>
+      <div style={{ height: 8 }} />
+      <button disabled={!secId || !slug} onClick={createArticle}>Yaratish</button>
+      {err && <p className="explain">{err}</p>}
+      <h3>Maqolalar</h3>
+      {articles.map((a) => (
+        <div key={a.id} className="review-item">
+          <p className="muted">{a.slug || a.id} <StatusBadge status={a.lifecycle_status} /></p>
+          <p>{a.title || "(nomsiz)"}</p>
+          <button className="secondary" onClick={() => { setArticleId(a.id); setVersionId(null); setStatusNow(a.lifecycle_status); resetContent(); setMode("edit"); }}>Yangi versiya / tahrirlash</button>
+        </div>
+      ))}
+      {articles.length === 0 && <p className="muted">Maqolalar yo'q</p>}
     </div>
   );
 }
@@ -937,8 +1172,8 @@ function TheorySection({ canReview }: { canReview: boolean }) {
           </button>
         ))}
       </div>
-      {sub === "sections" && <TheorySimpleList kind="sections" />}
-      {sub === "articles" && <TheorySimpleList kind="articles" />}
+      {sub === "sections" && <SectionsManager canReview={canReview} />}
+      {sub === "articles" && <ArticlesManager canReview={canReview} />}
       {isEditableEntity(sub) && !editing && (
         <TheoryList
           config={THEORY_CONFIGS[sub]}

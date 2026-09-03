@@ -608,6 +608,51 @@ export type SignCreateOut = TheoryVersionOut & { road_sign_id: string };
 export type MarkingCreateOut = TheoryVersionOut & { road_marking_id: string };
 export type GestureCreateOut = TheoryVersionOut & { gesture_id: string };
 export type LightCreateOut = TheoryVersionOut & { light_id: string };
+export type ArticleVersionOut = TheoryVersionOut & { article_id: string };
+export interface SectionCreateOut {
+  id: string;
+  slug: string;
+  status: string;
+}
+
+export type BlockType =
+  | "text" | "rule_callout" | "image" | "animation" | "diagram" | "comparison"
+  | "warning" | "memory_tip" | "table" | "example" | "practice_link";
+
+export interface AdminBlockInput {
+  type: BlockType;
+  body?: string;
+  media_id?: string | null;
+  rule_code?: string | null;
+  ref_question_id?: string | null;
+  data?: Record<string, unknown> | null;
+}
+
+export interface AdminSectionCreateInput {
+  slug: string;
+  title: string;
+  subtitle?: string;
+  topic?: string | null;
+  position?: number;
+  icon_media_id?: string | null;
+}
+
+export interface AdminArticleCreateInput {
+  section_id: string;
+  slug: string;
+  kind: "lesson" | "reference" | "quick_ref" | "common_mistake";
+  position?: number;
+}
+
+export interface AdminArticleContentInput {
+  title: string;
+  summary?: string;
+  hero_media_id?: string | null;
+  ai_assisted?: boolean;
+  blocks: AdminBlockInput[];
+  rule_codes: string[];
+  question_ids: string[];
+}
 
 export interface ReviewQueueRow {
   version_id: string;

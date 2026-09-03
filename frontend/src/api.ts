@@ -309,6 +309,26 @@ export const adminApi = {
   theoryPublishLight: (vid: string) =>
     request<import("./types").TheoryVersionOut>(`/api/admin/theory/light-versions/${vid}/publish`, { method: "POST", body: "{}" }),
 
+  // ---- Sections (create/translate/publish) ----
+  theoryCreateSection: (payload: import("./types").AdminSectionCreateInput) =>
+    request<import("./types").SectionCreateOut>("/api/admin/theory/sections", { method: "POST", body: JSON.stringify(payload) }),
+  theoryTranslateSection: (id: string, payload: { language?: string; title: string; subtitle?: string }) =>
+    request<{ id: string; status: string }>(`/api/admin/theory/sections/${id}/translation`, { method: "PUT", body: JSON.stringify(payload) }),
+  theoryPublishSection: (id: string) =>
+    request<{ id: string; status: string }>(`/api/admin/theory/sections/${id}/publish`, { method: "POST", body: "{}" }),
+
+  // ---- Articles (create + block editor content + review lifecycle) ----
+  theoryCreateArticle: (payload: import("./types").AdminArticleCreateInput) =>
+    request<import("./types").ArticleVersionOut>("/api/admin/theory/articles", { method: "POST", body: JSON.stringify(payload) }),
+  theoryEditArticle: (articleId: string, payload: import("./types").AdminArticleContentInput) =>
+    request<import("./types").ArticleVersionOut>(`/api/admin/theory/articles/${articleId}`, { method: "PUT", body: JSON.stringify(payload) }),
+  theorySubmitArticle: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/article-versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
+  theoryReviewArticle: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/article-versions/${vid}/review`, { method: "POST", body: "{}" }),
+  theoryPublishArticle: (vid: string) =>
+    request<import("./types").TheoryVersionOut>(`/api/admin/theory/article-versions/${vid}/publish`, { method: "POST", body: "{}" }),
+
   theoryReviewQueue: () =>
     request<import("./types").ReviewQueueOut>("/api/admin/theory/review-queue")
 };
