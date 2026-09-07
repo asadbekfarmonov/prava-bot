@@ -1,5 +1,9 @@
-"""Server-side admin authorization: non-admin 403 on every admin endpoint; role
-enforcement (author cannot publish/manage rules); user cannot set admin_role."""
+"""Server-side admin authorization (two-level model: ADMIN / USER).
+
+Being in ADMIN_TELEGRAM_IDS is the sole gate: every allowlisted user is a full ADMIN
+and passes every admin endpoint; a non-allowlisted user gets 403 on all of them and an
+unauthenticated request gets 401. There is no role tier and no role-assignment endpoint.
+"""
 
 from __future__ import annotations
 
@@ -31,7 +35,6 @@ ADMIN_ENDPOINTS = [
     ("get", "/api/admin/reports", None),
     ("post", "/api/admin/reports/xxx/resolve", {"action": "resolve"}),
     ("post", "/api/admin/import", {"format": "json", "content": "[]"}),
-    ("post", "/api/admin/users/xxx/role", {"role": "admin"}),
 ]
 
 
@@ -49,38 +52,37 @@ def test_unauthenticated_blocked(client):
     assert c.get("/api/admin/overview").status_code == 401
 
 
-def test_author_cannot_publish_or_manage_rules(client):
+def test_admin_can_create_publish_and_manage_rules(client):
+    """Two-level model: any allowlisted admin can create (=live), edit, and manage
+    rules. Create publishes immediately; the vestigial transition endpoints are
+    idempotent no-ops on the already-published version."""
     roles = build_admins(client)
     rule = make_rule(roles["admin"])
-    # Author creates a draft, submits, but cannot review/publish or create rules.
+    # Create is live: the question is published immediately.
     r = roles["author"].post("/api/admin/questions", json=valid_question_payload(rule["code"]))
     assert r.status_code == 201, r.text
-    version_id = r.json()["id"]
+    body = r.json()
+    assert body["status"] == "published"
+    version_id = body["id"]
 
+    # Vestigial transitions are idempotent no-ops (still 200) for any admin.
     assert roles["author"].post(f"/api/admin/versions/{version_id}/submit-review").status_code == 200
-    # author role < reviewer: cannot review or publish
-    assert roles["author"].post(f"/api/admin/versions/{version_id}/review").status_code == 403
-    assert roles["author"].post(f"/api/admin/versions/{version_id}/publish").status_code == 403
-    # author cannot create rules (admin-only)
-    assert roles["author"].post("/api/admin/rules", json={"code": "YHQ:5.5", "text": "x"}).status_code == 403
+    assert roles["author"].post(f"/api/admin/versions/{version_id}/review").status_code == 200
+    assert roles["author"].post(f"/api/admin/versions/{version_id}/publish").status_code == 200
+    # Any admin can create rules.
+    assert roles["author"].post("/api/admin/rules", json={"code": "YHQ:5.5", "text": "x"}).status_code == 201
 
 
-def test_user_cannot_self_assign_role_via_role_endpoint(client):
-    roles = build_admins(client)
-    # A reviewer trying to assign roles (superadmin-only) is blocked.
-    c = roles["reviewer"]
-    me = c.get("/api/auth/me").json()["user"]
-    assert c.post(f"/api/admin/users/{me['id']}/role", json={"role": "superadmin"}).status_code == 403
+def test_only_allowlist_membership_grants_admin(client):
+    """A user whose Telegram id is NOT in ADMIN_TELEGRAM_IDS is never an admin, and the
+    persisted admin_role DB column is never consulted (two-level model)."""
+    roles = build_admins(client)  # ensures the app/DB is initialised with admins
+    assert roles["admin"].get("/api/admin/overview").status_code == 200
 
-
-def test_role_resolution_requires_allowlist_membership(client):
-    # A user with telegram id NOT in the allowlist can never gain a role, even if a
-    # superadmin somehow set one (defense in depth: base capability required).
-    roles = build_admins(client)
     outsider = new_client(client)
-    u = dev_login(outsider, 12345, "Outsider")  # not in allowlist
+    dev_login(outsider, 12345, "Outsider")  # not in allowlist
     onboard(outsider)
-    # superadmin assigns admin role to the outsider row...
-    assert roles["superadmin"].post(f"/api/admin/users/{u['id']}/role", json={"role": "admin"}).status_code == 200
-    # ...but the outsider still gets 403 because they are not in ADMIN_TELEGRAM_IDS.
     assert outsider.get("/api/admin/overview").status_code == 403
+    me = outsider.get("/api/auth/me").json()["user"]
+    assert me["is_admin"] is False
+    assert me["admin_role"] is None

@@ -22,25 +22,26 @@ def onboard(c: TestClient) -> None:
 
 
 def build_admins(client) -> dict[str, TestClient]:
-    """Return role -> logged-in client. 9010 is env-seeded superadmin; it assigns roles."""
-    superadmin = new_client(client)
-    su = dev_login(superadmin, 9010, "Super")
-    onboard(superadmin)
-    assert su["admin_role"] == "superadmin", su
+    """Return role-keyed logged-in clients. Two-level model: EVERY client is a full
+    ADMIN purely by being in ADMIN_TELEGRAM_IDS (conftest sets 9001..9004,9010) — there
+    is no role assignment. The dict keys {superadmin,admin,reviewer,author} are kept
+    for source compatibility with existing tests; all four are equally admins now.
+    """
 
-    def make(telegram_id: int, role: str, name: str) -> TestClient:
+    def make(telegram_id: int, name: str) -> TestClient:
         c = new_client(client)
         u = dev_login(c, telegram_id, name)
         onboard(c)
-        r = superadmin.post(f"/api/admin/users/{u['id']}/role", json={"role": role})
-        assert r.status_code == 200, r.text
+        # Allowlisted users surface admin_role='admin' server-side (no DB tier).
+        assert u["admin_role"] == "admin", u
+        assert u["is_admin"] is True, u
         return c
 
     return {
-        "superadmin": superadmin,
-        "admin": make(9003, "admin", "Admin"),
-        "reviewer": make(9002, "content_reviewer", "Reviewer"),
-        "author": make(9001, "content_author", "Author"),
+        "superadmin": make(9010, "Super"),
+        "admin": make(9003, "Admin"),
+        "reviewer": make(9002, "Reviewer"),
+        "author": make(9001, "Author"),
     }
 
 

@@ -196,7 +196,9 @@ def _apply_content(db: Session, version: QuestionVersion, data: QuestionContentI
 # --------------------------------------------------------------------------- #
 # Create / edit
 # --------------------------------------------------------------------------- #
-def create_question(db: Session, author: User, data: QuestionContentInput) -> QuestionVersion:
+def create_question(
+    db: Session, author: User, data: QuestionContentInput, *, publish: bool = True
+) -> QuestionVersion:
     question = Question(
         category=data.category,
         topic=data.topic,
@@ -221,6 +223,11 @@ def create_question(db: Session, author: User, data: QuestionContentInput) -> Qu
     _apply_content(db, version, data)
 
     record_audit(db, author, "question.create", "question_version", version.id, version=1)
+    # save = live: publish immediately (minimal quality floor). On failure the whole
+    # create is rolled back and the single blocked case surfaces as HTTP 422. Bulk
+    # import passes publish=False so imported rows land as DRAFT (never auto-publish).
+    if publish:
+        _publish_version_live(db, author, version)
     db.commit()
     db.refresh(version)
     return version
@@ -281,10 +288,62 @@ def edit_question(db: Session, actor: User, question_id: str, data: QuestionCont
         version = _new_draft_version(db, question, actor, data)
         action = "question.edit_new_version"
 
-    question.lifecycle_status = VersionStatus.DRAFT if question.current_version_id is None else question.lifecycle_status
     record_audit(db, actor, action, "question_version", version.id, version=version.version)
+    # save = live: publish the resulting version immediately. If the prior current
+    # version was locked (ever-published / attempt-referenced) a NEW version was forked
+    # above, so the prior stays immutable and is superseded here — historical attempts
+    # remain pinned to it (version pinning preserved).
+    _publish_version_live(db, actor, version)
     db.commit()
     db.refresh(version)
+    return version
+
+
+# --------------------------------------------------------------------------- #
+# save = live publish (two-level model): no draft/review/publish steps, no
+# separation-of-duties. Blocks only on the minimal quality floor.
+# --------------------------------------------------------------------------- #
+def _publish_version_live(db: Session, actor: User, version: QuestionVersion) -> QuestionVersion:
+    """Publish ``version`` immediately after create/edit.
+
+    Runs the relaxed :func:`validate_version_for_publish`; on failure raises HTTP 422
+    with the errors (whole transaction rolls back). On success: supersede the prior
+    PUBLISHED version (retained, immutable, for historical attempts), repoint
+    ``Question.current_version_id``, and stamp published/verified timestamps + actor.
+    """
+    errors = validate_version_for_publish(db, version)
+    if errors:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "Sifat minimumi bajarilmadi", "errors": errors},
+        )
+
+    question = version.question
+    prior = db.scalar(
+        select(QuestionVersion).where(
+            QuestionVersion.question_id == question.id,
+            QuestionVersion.status == VersionStatus.PUBLISHED,
+            QuestionVersion.id != version.id,
+        )
+    )
+    if prior is not None:
+        prior.status = VersionStatus.SUPERSEDED
+
+    now = _now()
+    version.status = VersionStatus.PUBLISHED
+    version.authored_by_user_id = version.authored_by_user_id or actor.id
+    version.reviewed_by_user_id = actor.id
+    version.approved_by_user_id = actor.id
+    version.published_at = now
+    version.verified_at = now
+    question.current_version_id = version.id
+    question.lifecycle_status = VersionStatus.PUBLISHED
+
+    record_audit(
+        db, actor, "question.publish", "question_version", version.id,
+        version=version.version, detail={"live": True},
+    )
     return version
 
 
@@ -320,7 +379,17 @@ def _option_tr(db: Session, option_id: str) -> AnswerOptionTranslation | None:
 
 
 def validate_version_for_publish(db: Session, version: QuestionVersion) -> list[str]:
-    """Return a list of validation error messages (empty => publishable)."""
+    """Return validation error messages (empty => publishable).
+
+    MINIMAL QUALITY FLOOR (the only blocking rules in the two-level / save=live model):
+      (a) 2-5 answer options (ANSWER_OPTIONS_MIN..MAX);
+      (b) exactly one option marked correct;
+      (c) a non-empty uz prompt OR a media_id (prompt-or-media);
+      (d) if a media_id is set, its object must exist in storage.
+
+    Explanations (per-option + short "eslab qoling") and a linked active YHQ rule are
+    ENCOURAGED but NON-blocking here (surfaced as optional hints in the UI/QA panel).
+    """
     errors: list[str] = []
     options = _options(db, version.id)
     n = len(options)
@@ -330,41 +399,11 @@ def validate_version_for_publish(db: Session, version: QuestionVersion) -> list[
     if len(correct) != 1:
         errors.append("Aynan bitta to'g'ri variant bo'lishi kerak.")
 
+    # Prompt-or-media: a non-empty uz prompt OR an attached media object.
     tr = _uz_translation(db, version.id)
-    if tr is None or not tr.prompt.strip():
-        errors.append("Savol matni (uz) bo'sh bo'lmasligi kerak.")
-    if tr is None or not tr.short_explanation.strip():
-        errors.append("Qisqa 'eslab qoling' izohi talab qilinadi.")
-
-    for o in options:
-        otr = _option_tr(db, o.id)
-        if otr is None or not otr.text.strip():
-            errors.append("Har bir variant matni bo'lishi kerak.")
-        if otr is None or not otr.explanation.strip():
-            errors.append("Har bir variant uchun izoh talab qilinadi.")
-
-    # Correct-answer reasoning present (the correct option's explanation).
-    if correct:
-        cotr = _option_tr(db, correct[0].id)
-        if cotr is None or not cotr.explanation.strip():
-            errors.append("To'g'ri javob uchun asos (izoh) talab qilinadi.")
-
-    # At least one current (non-superseded) rule linked.
-    links = list(
-        db.scalars(select(QuestionVersionRule).where(QuestionVersionRule.question_version_id == version.id))
-    )
-    if not links:
-        errors.append("Kamida bitta amaldagi qoida bog'lanishi kerak.")
-    else:
-        from app.domain.enums import RuleStatus
-
-        has_current = False
-        for link in links:
-            rule = db.get(Rule, link.rule_id)
-            if rule is not None and rule.status == RuleStatus.ACTIVE and rule.version == link.rule_version:
-                has_current = True
-        if not has_current:
-            errors.append("Bog'langan qoida eskirgan yoki bekor qilingan (amaldagi qoida kerak).")
+    has_prompt = tr is not None and bool(tr.prompt.strip())
+    if not has_prompt and not version.media_id:
+        errors.append("Savol matni (uz) yoki media biriktirilishi kerak.")
 
     # Media accessible (metadata resolves + object present in storage).
     if version.media_id:
@@ -391,6 +430,10 @@ def _get_version(db: Session, version_id: str) -> QuestionVersion:
 
 def submit_for_review(db: Session, actor: User, version_id: str) -> QuestionVersion:
     version = _get_version(db, version_id)
+    # Vestigial in the save=live model: a version created/edited via the API is already
+    # PUBLISHED, so this is an idempotent no-op (kept working for bulk-imported drafts).
+    if version.status == VersionStatus.PUBLISHED:
+        return version
     if version.status not in (VersionStatus.DRAFT, VersionStatus.NEEDS_REVERIFICATION):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Faqat qoralamani ko'rikka yuborish mumkin")
     version.status = VersionStatus.NEEDS_REVIEW
@@ -403,6 +446,8 @@ def submit_for_review(db: Session, actor: User, version_id: str) -> QuestionVers
 
 def mark_reviewed(db: Session, reviewer: User, version_id: str) -> QuestionVersion:
     version = _get_version(db, version_id)
+    if version.status == VersionStatus.PUBLISHED:  # vestigial: idempotent no-op
+        return version
     if version.status != VersionStatus.NEEDS_REVIEW:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Faqat ko'rikdagi versiyani tasdiqlash mumkin")
     version.status = VersionStatus.REVIEWED
@@ -416,6 +461,8 @@ def mark_reviewed(db: Session, reviewer: User, version_id: str) -> QuestionVersi
 
 def publish_version(db: Session, approver: User, version_id: str) -> QuestionVersion:
     version = _get_version(db, version_id)
+    if version.status == VersionStatus.PUBLISHED:  # vestigial: already live -> no-op
+        return version
     if version.status not in (VersionStatus.REVIEWED, VersionStatus.NEEDS_REVIEW):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Nashrdan oldin versiya ko'rikdan o'tishi kerak")
 

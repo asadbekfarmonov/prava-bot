@@ -81,11 +81,6 @@ class ReportResolveIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
-class RoleAssignIn(BaseModel):
-    model_config = {"extra": "ignore"}
-    role: Literal["content_author", "content_reviewer", "admin", "superadmin"] | None = None
-
-
 class ImportIn(BaseModel):
     model_config = {"extra": "ignore"}
     format: Literal["json", "csv"]

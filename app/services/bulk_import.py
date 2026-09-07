@@ -163,7 +163,7 @@ def run_import(
     created_ids: list[str] = []
     if commit:
         for data in valid:
-            version = create_question(db, author, data)  # lands as DRAFT
+            version = create_question(db, author, data, publish=False)  # lands as DRAFT
             created_ids.append(version.id)
         record_audit(
             db, author, "content.import", "import", None,

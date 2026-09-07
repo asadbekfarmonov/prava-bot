@@ -14,7 +14,6 @@ from app.api.admin_schemas import (
     ImportIn,
     QuestionIn,
     ReportResolveIn,
-    RoleAssignIn,
     RuleCreateIn,
     RuleSupersedeIn,
     RuleTranslationIn,
@@ -31,14 +30,12 @@ from app.services import (
     reports,
     rules_admin,
 )
-from app.services.audit import record_audit
 
 router = APIRouter(prefix="/api/admin")
 
 AuthorUser = Annotated[User, Depends(require_role(AdminRole.CONTENT_AUTHOR))]
 ReviewerUser = Annotated[User, Depends(require_role(AdminRole.CONTENT_REVIEWER))]
 AdminUserDep = Annotated[User, Depends(require_role(AdminRole.ADMIN))]
-SuperadminUser = Annotated[User, Depends(require_role(AdminRole.SUPERADMIN))]
 
 
 def _parse_topic(value: str) -> Topic:
@@ -237,19 +234,3 @@ def import_content(payload: ImportIn, user: AdminUserDep, db: DbSession) -> dict
     except bulk_import.ImportParseError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-
-# --------------------------------------------------------------------------- #
-# Role management (superadmin only; a user can never set their own role via a body)
-# --------------------------------------------------------------------------- #
-@router.post("/users/{user_id}/role")
-def assign_role(user_id: str, payload: RoleAssignIn, user: SuperadminUser, db: DbSession) -> dict:
-    target = db.get(User, user_id)
-    if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foydalanuvchi topilmadi")
-    target.admin_role = AdminRole(payload.role) if payload.role else None
-    record_audit(
-        db, user, "user.assign_role", "user", target.id,
-        detail={"role": payload.role},
-    )
-    db.commit()
-    return {"user_id": target.id, "admin_role": target.admin_role.value if target.admin_role else None}

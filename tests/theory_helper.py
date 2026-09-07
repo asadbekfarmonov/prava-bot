@@ -34,16 +34,15 @@ def student_client(client, telegram_id: int = 1001, name: str = "Dilnoza") -> Te
 
 
 def publish_question(roles, rule_code: str, prompt: str = "Belgi savoli?", is_sign=True):
-    """Author->review->publish a valid question; return (version_id, question_id)."""
+    """Create a question (save = live -> immediately PUBLISHED); return (version_id, question_id)."""
     payload = valid_question_payload(rule_code, prompt)
     payload["is_sign_question"] = is_sign
     payload["topic"] = "road_signs"
     r = roles["author"].post("/api/admin/questions", json=payload)
     assert r.status_code == 201, r.text
-    vid = r.json()["id"]
-    assert roles["author"].post(f"/api/admin/versions/{vid}/submit-review").status_code == 200
-    assert roles["reviewer"].post(f"/api/admin/versions/{vid}/review").status_code == 200
-    assert roles["reviewer"].post(f"/api/admin/versions/{vid}/publish").status_code == 200
+    body = r.json()
+    assert body["status"] == "published", body
+    vid = body["id"]
     return vid, question_id_for_version(vid)
 
 

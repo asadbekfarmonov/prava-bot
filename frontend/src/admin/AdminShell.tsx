@@ -79,7 +79,7 @@ export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }
       case "dashboard":
         return <Dashboard onGoReports={() => nav.push({ kind: "reports" })} onGoReview={() => nav.push({ kind: canReview ? "review" : "reports" })} />;
       case "questions":
-        return <QuestionsSection canReview={canReview} />;
+        return <QuestionsSection />;
       case "assessments":
         return <Placeholder title="Testlar" />;
       case "theory":

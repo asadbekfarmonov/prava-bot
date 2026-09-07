@@ -6,6 +6,24 @@ role ([09-security.md](09-security.md)); every action is audited (`AdminAuditEve
 
 ## Roles
 
+> **Update (v2 role model — two levels: admin / user).** The four-role table below is
+> **historical**. The shipped model has exactly two levels: any Telegram id in
+> `ADMIN_TELEGRAM_IDS` (the `SUPERADMIN_TELEGRAM_IDS` alias is folded in via
+> `settings.all_admin_ids`) is a full **ADMIN**, resolved server-side on every request;
+> everyone else is a **USER**. `require_role(min_role)` collapses to "allowed iff the
+> caller is an allowlisted admin" (the `min_role` argument is ignored but kept for
+> source compatibility). There is **no** persisted role tier and **no** role-assignment
+> endpoint (`POST /users/{id}/role` was removed). The `users.admin_role` DB column is
+> vestigial and never consulted for gating; separation-of-duties is intentionally
+> dropped. Question authoring is now **`save = live`** — create/edit publishes
+> immediately, blocking only on the minimal quality floor (2–5 options, exactly one
+> correct, prompt-or-media). Explanations + linked rule are optional/encouraged. All
+> other integrity guarantees (immutable versions, version pinning, no answer-leak,
+> server-authoritative timer/grading, `needs_reverification` propagation, audit) are
+> unchanged. The vestigial submit-review/review/publish endpoints still exist and are
+> idempotent no-ops on an already-published version.
+
+
 `AdminRole` ([02-domain-model.md](02-domain-model.md#users-roles-profiles)):
 
 | Role | Can |

@@ -1,10 +1,16 @@
-"""Server-side admin authorization (docs/spec/08 roles + 09 admin security).
+"""Server-side admin authorization (two-level model: ADMIN / USER).
 
-Being in ADMIN_TELEGRAM_IDS (or SUPERADMIN_TELEGRAM_IDS) is the *base* capability;
-the EFFECTIVE capability is the user's persisted ``admin_role``. Every admin endpoint
-enforces ``require_role(min_role)`` server-side — hiding frontend routes is NOT a
-control. A user removed from the allowlist loses capability on the next request
-(role is resolved server-side each time, never cached in the cookie).
+The role model is an ALLOWLIST: any Telegram id in ADMIN_TELEGRAM_IDS (or the
+SUPERADMIN_TELEGRAM_IDS alias) is a full ADMIN, resolved server-side on every
+request. There is no persisted role tier and no role-assignment flow — the
+``users.admin_role`` DB column is vestigial and never consulted for gating.
+
+Every admin endpoint enforces ``require_role(...)`` server-side; hiding frontend
+routes is NOT a control. A user removed from the allowlist loses capability on the
+next request (membership is resolved server-side each time, never cached in the
+cookie). ``min_role`` is retained in the signature for source compatibility with the
+existing typed deps (AuthorUser/ReviewerUser/AdminUser/SuperadminUser) but is ignored:
+an allowlisted admin passes every gate.
 """
 
 from __future__ import annotations
@@ -15,7 +21,7 @@ from fastapi import Depends, HTTPException, status
 
 from app.api.deps import CurrentUser
 from app.config import get_settings
-from app.domain.enums import AdminRole, role_rank
+from app.domain.enums import AdminRole
 from app.domain.models import User
 
 
@@ -27,24 +33,31 @@ def _telegram_id_int(user: User) -> int | None:
 
 
 def resolve_effective_role(user: User) -> AdminRole | None:
-    """Effective admin role, or None. Requires allowlist membership AND a set role."""
+    """Effective admin role, or None. ADMIN iff the Telegram id is allowlisted.
+
+    Does NOT depend on the ``user.admin_role`` DB column (two-level model).
+    """
     settings = get_settings()
     tid = _telegram_id_int(user)
     if tid is None:
         return None
-    if tid not in settings.admin_ids and tid not in settings.superadmin_ids:
-        return None
-    return user.admin_role
+    if tid in settings.all_admin_ids:
+        return AdminRole.ADMIN
+    return None
 
 
 def require_role(min_role: AdminRole) -> Callable[..., User]:
-    """FastAPI dependency factory enforcing ``effective_role >= min_role`` (403 else)."""
+    """FastAPI dependency factory. Allowed iff the user is an allowlisted admin.
+
+    ``min_role`` is ignored (two-level model): any admin passes every gate. The
+    parameter is kept so existing routers/typed deps keep compiling unchanged.
+    """
 
     def _dependency(user: CurrentUser) -> User:
-        effective = resolve_effective_role(user)
-        if role_rank(effective) < role_rank(min_role):
+        if resolve_effective_role(user) is None:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Ruxsat etilmagan (rol talab qilinadi)"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Ruxsat etilmagan (administrator talab qilinadi)",
             )
         return user
 

@@ -75,49 +75,41 @@ def test_rule_search_returns_expected_picker_fields(client):
     assert row["status"] == "active"
 
 
-# 3. current_version_id repoints ONLY on publish (not on edit). ------------------
+# 3. save=live: editing forks a new version AND repoints on save; the prior
+#    published version is superseded and remains immutable (version pinning). --------
 def _publish(roles, rule_code, prompt):
     r = roles["author"].post("/api/admin/questions", json=valid_question_payload(rule_code, prompt))
-    vid = r.json()["id"]
-    roles["author"].post(f"/api/admin/versions/{vid}/submit-review")
-    roles["reviewer"].post(f"/api/admin/versions/{vid}/review")
-    assert roles["reviewer"].post(f"/api/admin/versions/{vid}/publish").status_code == 200
-    return vid
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "published"
+    return r.json()["id"]
 
 
-def test_current_version_id_repoints_only_on_publish(client):
+def test_edit_forks_new_version_and_repoints_live(client):
     roles = build_admins(client)
     rule = make_rule(roles["admin"], code="YHQ:3.3", text="Qoida")
     v1 = _publish(roles, rule["code"], prompt="V1 MATN")
     qid = question_id_for_version(v1)
 
-    from app.domain.models import Question
+    from app.domain.models import Question, QuestionVersion
     from app.storage.db import session_scope
 
     with session_scope() as db:
         assert db.get(Question, qid).current_version_id == v1
 
-    # Edit the published question -> forks a NEW draft v2.
+    # Edit the published question -> forks a NEW version and publishes it live.
     r = roles["author"].put(
         f"/api/admin/questions/{qid}", json=valid_question_payload(rule["code"], prompt="V2 MATN")
     )
+    assert r.status_code == 200, r.text
     v2 = r.json()["id"]
     assert v2 != v1
+    assert r.json()["status"] == "published"
 
-    # Editing must NOT repoint the container; learners still get v1 until v2 publishes.
-    with session_scope() as db:
-        assert db.get(Question, qid).current_version_id == v1, "current_version_id moved on edit"
-
-    # Also true after the draft is merely reviewed (still not published).
-    roles["author"].post(f"/api/admin/versions/{v2}/submit-review")
-    roles["reviewer"].post(f"/api/admin/versions/{v2}/review")
-    with session_scope() as db:
-        assert db.get(Question, qid).current_version_id == v1, "current_version_id moved on review"
-
-    # Only publishing repoints.
-    assert roles["reviewer"].post(f"/api/admin/versions/{v2}/publish").status_code == 200
+    # save=live: the container repoints to v2 immediately; v1 is superseded but the
+    # original row stays immutable (retained for historical attempts / version pinning).
     with session_scope() as db:
         assert db.get(Question, qid).current_version_id == v2
+        assert db.get(QuestionVersion, v1).status.value == "superseded"
 
 
 # 4. Media upload endpoint is part of the admin authz surface. -------------------

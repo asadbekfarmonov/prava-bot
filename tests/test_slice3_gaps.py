@@ -61,25 +61,38 @@ def test_admin_role_in_profile_body_is_ignored(client):
         assert row.admin_role is None
 
 
-def test_author_cannot_escalate_own_role_via_body(client):
-    """Even an authenticated content_author cannot lift their role by smuggling
-    admin_role through the profile body."""
+def test_admin_role_db_column_never_written_from_body(client):
+    """Two-level model: admin_role is resolved from the allowlist server-side and the
+    users.admin_role DB column is vestigial. Smuggling admin_role through the profile
+    body never writes that column (mass-assignment protection preserved)."""
     roles = build_admins(client)
     author = roles["author"]
     author.put(
         "/api/profile",
         json={"display_name": "A", "category": "B", "language": "uz", "admin_role": "superadmin"},
     )
-    # Author still cannot hit an admin-only (rule create) endpoint.
-    assert author.post("/api/admin/rules", json={"code": "YHQ:6.6", "text": "x"}).status_code == 403
-    # Role-assignment endpoint (superadmin) still forbidden.
     me = author.get("/api/auth/me").json()["user"]
-    assert author.post(f"/api/admin/users/{me['id']}/role", json={"role": "superadmin"}).status_code == 403
+    # is_admin is purely allowlist-driven; admin_role is surfaced as 'admin' for the UI.
+    assert me["is_admin"] is True
+    assert me["admin_role"] == "admin"
+
+    from app.domain.models import User
+    from app.storage.db import session_scope
+
+    with session_scope() as db:
+        row = db.get(User, me["id"])
+        assert row.admin_role is None  # DB column never written from client input
 
 
 # --------------------------------------------------------------------------- #
 # 2. GIF frame-bomb rejection.
 # --------------------------------------------------------------------------- #
+def _png_bytes(w: int = 16, h: int = 16, color=(20, 120, 200)) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def _multiframe_gif(frames: int, size=(16, 16)) -> bytes:
     # Each frame has genuinely distinct pixels so Pillow does not dedupe them to 1.
     imgs = []
@@ -189,10 +202,16 @@ def test_qa_flags_superseded_rule(client):
 def test_qa_flags_incomplete_uz(client):
     roles = build_admins(client)
     rule = make_rule(roles["admin"], code="YHQ:9.9", text="Qoida")
-    # Valid EXCEPT the uz prompt is empty -> uz_translation_complete must fail while
-    # exactly_one_correct / explanation_per_option still pass (isolates the uz flag).
+    # Attach media so the prompt-or-media floor is satisfied with an EMPTY prompt; the
+    # QA checklist then flags uz_translation_complete as a (non-blocking) quality hint
+    # while exactly_one_correct / explanation_per_option still pass (isolates uz).
+    up = roles["author"].post(
+        "/api/admin/media", files={"file": ("p.png", _png_bytes(), "image/png")}
+    ).json()
     payload = valid_question_payload(rule["code"], prompt="")
+    payload["media_id"] = up["id"]
     r = roles["author"].post("/api/admin/questions", json=payload)
+    assert r.status_code == 201, r.text
     qid = question_id_for_version(r.json()["id"])
 
     qa = roles["reviewer"].get(f"/api/admin/questions/{qid}/qa").json()
@@ -203,16 +222,15 @@ def test_qa_flags_incomplete_uz(client):
     assert qa["all_passed"] is False
 
 
-def test_publish_blocked_when_uz_prompt_empty(client):
-    """The publish gate (not just the display checklist) rejects incomplete uz."""
+def test_create_live_blocked_when_no_prompt_and_no_media(client):
+    """The save=live quality floor rejects a question with neither a uz prompt nor
+    media, surfacing the block at CREATE (422) — no draft is persisted."""
     roles = build_admins(client)
     rule = make_rule(roles["admin"], code="YHQ:9.1", text="Qoida")
-    r = roles["author"].post("/api/admin/questions", json=valid_question_payload(rule["code"], prompt=""))
-    vid = r.json()["id"]
-    roles["author"].post(f"/api/admin/versions/{vid}/submit-review")
-    roles["reviewer"].post(f"/api/admin/versions/{vid}/review")
-    resp = roles["reviewer"].post(f"/api/admin/versions/{vid}/publish")
-    assert resp.status_code == 422
+    resp = roles["author"].post(
+        "/api/admin/questions", json=valid_question_payload(rule["code"], prompt="")
+    )
+    assert resp.status_code == 422, resp.text
     assert any("Savol matni" in e for e in resp.json()["detail"]["errors"])
 
 

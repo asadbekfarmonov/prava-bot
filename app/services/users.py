@@ -45,6 +45,13 @@ def upsert_telegram_user(db: Session, payload: dict[str, Any]) -> User:
     return user
 
 
+def _is_allowlisted(user: User) -> bool:
+    try:
+        return int(user.telegram_id) in get_settings().all_admin_ids
+    except (TypeError, ValueError):
+        return False
+
+
 def user_out(user: User) -> dict[str, Any]:
     return {
         "id": user.id,
@@ -53,7 +60,11 @@ def user_out(user: User) -> dict[str, Any]:
         "first_name": user.first_name,
         "last_name": user.last_name,
         "photo_url": user.photo_url,
-        "is_admin": int(user.telegram_id) in get_settings().admin_ids,
-        "admin_role": user.admin_role.value if user.admin_role else None,
+        # Two-level model: is_admin is purely allowlist-driven (server-side). We also
+        # surface admin_role='admin' for allowlisted users so the frontend's existing
+        # admin-entry / canReview checks keep working with zero frontend-logic changes.
+        # The DB column user.admin_role is NOT consulted here.
+        "is_admin": _is_allowlisted(user),
+        "admin_role": "admin" if _is_allowlisted(user) else None,
         "onboarding_completed": bool(user.profile and user.profile.onboarding_completed),
     }

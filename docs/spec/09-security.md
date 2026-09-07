@@ -27,6 +27,25 @@ explicit and testable.
   **logout** that clears the session; a user removed from `ADMIN_TELEGRAM_IDS` loses admin
   capability on next request (role resolved server-side each time, not cached in the cookie).
 
+## Authorization model (v2 — two levels)
+
+> **Update.** The role model is now **two levels only: admin / user**. Authorization is a
+> pure server-side **allowlist**: a request is admin iff `int(telegram_id)` is in
+> `settings.all_admin_ids` (= `ADMIN_TELEGRAM_IDS ∪ SUPERADMIN_TELEGRAM_IDS`), resolved
+> on every request (never cached in the cookie; removal from the allowlist revokes admin
+> on the next request). `resolve_effective_role` no longer reads the vestigial
+> `users.admin_role` DB column, and there is no role-assignment endpoint, so
+> privilege-escalation via a persisted role or a request body is not possible.
+> Mass-assignment protection on the profile/login path is retained (`admin_role` is never
+> written from client input). Question authoring is **`save = live`**: create/edit
+> publishes immediately, gated only by the minimal quality floor (2–5 options, exactly
+> one correct, prompt-or-media; media must exist in storage). Content-integrity
+> guarantees are otherwise unchanged: immutable published versions + version pinning
+> (edits fork a new version; historical attempts render the pinned old version), no
+> answer-leak during live mocks, server-authoritative timer/grading,
+> `needs_reverification` propagation on rule supersede, and audit events for every
+> create/edit/publish/supersede/archive/import/report action.
+
 ## Authorization / IDOR
 
 **Every** backend resource verifies ownership/role **server-side**; the object id in the URL

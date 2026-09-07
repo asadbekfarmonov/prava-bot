@@ -114,6 +114,15 @@ class Settings(BaseSettings):
         return ids
 
     @property
+    def all_admin_ids(self) -> set[int]:
+        """Effective admin allowlist = ADMIN_TELEGRAM_IDS | SUPERADMIN_TELEGRAM_IDS.
+
+        In the two-level model (admin/user) any Telegram id in this set is a full
+        ADMIN, resolved server-side each request; there is no DB role tier.
+        """
+        return self.admin_ids | self.superadmin_ids
+
+    @property
     def media_storage_configured(self) -> bool:
         """True when an S3-compatible bucket is configured; otherwise the in-memory
         fake is used (dev/test never hit the network)."""

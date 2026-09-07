@@ -14,16 +14,12 @@ from tests.admin_helper import (
 
 
 def _publish(roles, rule_code, prompt="Test savol?"):
-    """Author->review->publish a valid question; return the published version id."""
+    """Create a valid question (save = live -> immediately PUBLISHED); return version id."""
     r = roles["author"].post("/api/admin/questions", json=valid_question_payload(rule_code, prompt))
     assert r.status_code == 201, r.text
-    vid = r.json()["id"]
-    assert roles["author"].post(f"/api/admin/versions/{vid}/submit-review").status_code == 200
-    assert roles["reviewer"].post(f"/api/admin/versions/{vid}/review").status_code == 200
-    pub = roles["reviewer"].post(f"/api/admin/versions/{vid}/publish")
-    assert pub.status_code == 200, pub.text
-    assert pub.json()["status"] == "published"
-    return vid
+    body = r.json()
+    assert body["status"] == "published", body
+    return body["id"]
 
 
 def test_full_publish_lifecycle(client):
@@ -32,9 +28,13 @@ def test_full_publish_lifecycle(client):
     _publish(roles, rule["code"])
 
 
-def test_publish_requires_validation(client):
+def test_create_live_blocked_by_minimal_floor(client):
+    """save = live: a question that violates the minimal quality floor (two correct
+    options + empty prompt/media) is rejected at CREATE with 422 — no draft persists.
+    A question WITHOUT explanations/rule (encouraged but optional) succeeds."""
     roles = build_admins(client)
-    # Invalid: two correct options, no rule, empty explanations.
+    make_rule(roles["admin"], code="YHQ:70.9")
+    # Blocked: two correct AND no prompt/media.
     bad = {
         "category": "B",
         "topic": "general_rules",
@@ -46,14 +46,30 @@ def test_publish_requires_validation(client):
         ],
         "rule_codes": [],
     }
-    r = roles["author"].post("/api/admin/questions", json=bad)
-    assert r.status_code == 201, r.text
-    vid = r.json()["id"]
-    roles["author"].post(f"/api/admin/versions/{vid}/submit-review")
-    roles["reviewer"].post(f"/api/admin/versions/{vid}/review")
-    resp = roles["reviewer"].post(f"/api/admin/versions/{vid}/publish")
-    assert resp.status_code == 422
+    resp = roles["author"].post("/api/admin/questions", json=bad)
+    assert resp.status_code == 422, resp.text
     assert "errors" in resp.json()["detail"]
+
+    # Blocked: fewer than 2 options.
+    too_few = {
+        "category": "B", "topic": "general_rules", "prompt": "Savol?",
+        "short_explanation": "", "rule_codes": [],
+        "options": [{"text": "a", "explanation": "", "is_correct": True}],
+    }
+    assert roles["author"].post("/api/admin/questions", json=too_few).status_code == 422
+
+    # Succeeds (published) with NO explanation and NO rule — only the floor matters.
+    ok = {
+        "category": "B", "topic": "general_rules", "prompt": "To'g'ri savol?",
+        "short_explanation": "", "rule_codes": [],
+        "options": [
+            {"text": "a", "explanation": "", "is_correct": True},
+            {"text": "b", "explanation": "", "is_correct": False},
+        ],
+    }
+    r = roles["author"].post("/api/admin/questions", json=ok)
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "published"
 
 
 def test_editing_published_creates_new_version_without_mutating_old(client):
@@ -169,33 +185,39 @@ def test_superseding_rule_flips_linked_versions_to_needs_reverification(client):
         assert v.status.value == "needs_reverification"
 
 
-def test_qa_checklist_catches_failures_and_exam_preview_has_no_leak(client):
+def test_qa_checklist_flags_optional_hints_and_exam_preview_has_no_leak(client):
+    """A question published via save=live WITHOUT the (now-optional) explanations/rule
+    is live, but the QA panel still surfaces those as non-blocking quality hints. The
+    exam-preview never leaks answers/explanations/rules (integrity preserved)."""
     roles = build_admins(client)
-    # Deliberately invalid draft: two correct, no rule, empty explanations, empty short.
-    bad = {
+    # Valid floor (prompt + one correct) but no explanations, no short, no rule.
+    minimal = {
         "category": "B",
         "topic": "general_rules",
         "prompt": "Savol bormi?",
         "short_explanation": "",
         "options": [
             {"text": "a", "explanation": "", "is_correct": True},
-            {"text": "b", "explanation": "", "is_correct": True},
+            {"text": "b", "explanation": "", "is_correct": False},
         ],
         "rule_codes": [],
     }
-    r = roles["author"].post("/api/admin/questions", json=bad)
+    r = roles["author"].post("/api/admin/questions", json=minimal)
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "published"
     vid = r.json()["id"]
     qid = question_id_for_version(vid)
 
     qa = roles["reviewer"].get(f"/api/admin/questions/{qid}/qa").json()
     checks = {c["key"]: c["passed"] for c in qa["checklist"]}
-    assert checks["exactly_one_correct"] is False
+    # Blocking-floor checks pass:
+    assert checks["exactly_one_correct"] is True
+    assert checks["option_count_2_5"] is True
+    # Encouraged-but-optional hints are flagged (non-blocking):
     assert checks["current_rule_linked"] is False
     assert checks["explanation_per_option"] is False
     assert checks["short_explanation_present"] is False
     assert checks["correct_answer_reasoning"] is False
-    assert checks["reviewer_approved"] is False
-    assert qa["all_passed"] is False
 
     # exam-preview must not leak answers/explanations/rules.
     exam = qa["exam_preview"]
@@ -249,3 +271,32 @@ def test_question_list_search_and_filter(client):
     # has_media filter (none have media).
     with_media = roles["author"].get("/api/admin/questions", params={"has_media": "true"}).json()["items"]
     assert with_media == []
+
+
+def test_created_question_is_immediately_eligible_in_practice_pool(client):
+    """save = live: a question created via POST /api/admin/questions is PUBLISHED at
+    once (has current_version_id) and is immediately served in the practice pool — no
+    submit/review/publish steps required."""
+    roles = build_admins(client)
+    rule = make_rule(roles["admin"], code="YHQ:71.1")
+    r = roles["author"].post(
+        "/api/admin/questions",
+        json=valid_question_payload(rule["code"], prompt="Yangi jonli savol?"),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "published"
+    vid = r.json()["id"]
+    qid = question_id_for_version(vid)
+
+    from app.domain.models import Question
+    from app.storage.db import session_scope
+
+    with session_scope() as db:
+        assert db.get(Question, qid).current_version_id == vid  # live immediately
+
+    student = new_client(client)
+    dev_login(student, 1001, "Student")
+    onboard(student)
+    student.post("/api/practice/sessions", json={"topic": "general_rules"})
+    q = student.get("/api/practice/questions/next", params={"topic": "general_rules"}).json()
+    assert q["question_version_id"] == vid  # the freshly-created live question is served

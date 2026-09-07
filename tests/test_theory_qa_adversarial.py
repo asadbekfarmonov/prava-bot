@@ -23,9 +23,9 @@ from tests.theory_helper import (
 
 
 # --------------------------------------------------------------------------- #
-# AuthZ: role too low cannot publish (author < reviewer)
+# AuthZ (two-level model): any allowlisted ADMIN can publish theory content.
 # --------------------------------------------------------------------------- #
-def test_author_role_too_low_cannot_publish_article_or_sign(client):
+def test_any_admin_can_publish_article_or_sign(client):
     roles = build_admins(client)
     rule = make_rule(roles["admin"])
     section_id = create_section(roles)
@@ -46,12 +46,11 @@ def test_author_role_too_low_cannot_publish_article_or_sign(client):
     roles["author"].post(f"/api/admin/theory/article-versions/{version_id}/submit-review")
     roles["reviewer"].post(f"/api/admin/theory/article-versions/{version_id}/review")
 
-    # ... but the AUTHOR (role too low) cannot PUBLISH -> 403.
+    # Two-level model: any admin can publish and read the review queue.
     assert roles["author"].post(
         f"/api/admin/theory/article-versions/{version_id}/publish"
-    ).status_code == 403
-    # Reviewer/verify endpoints are also gated to reviewer.
-    assert roles["author"].get("/api/admin/theory/review-queue").status_code == 403
+    ).status_code == 200
+    assert roles["author"].get("/api/admin/theory/review-queue").status_code == 200
 
     # Same for signs: author cannot publish a sign version.
     sv = roles["author"].post(
@@ -66,7 +65,7 @@ def test_author_role_too_low_cannot_publish_article_or_sign(client):
     roles["reviewer"].post(f"/api/admin/theory/sign-versions/{sver}/review")
     assert roles["author"].post(
         f"/api/admin/theory/sign-versions/{sver}/publish"
-    ).status_code == 403
+    ).status_code == 200
 
 
 # --------------------------------------------------------------------------- #

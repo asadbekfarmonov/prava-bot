@@ -193,15 +193,12 @@ export function LivePreview({ data }: { data: AdminQuestionInput }) {
 
 function Editor({
   editingId,
-  canReview,
   onSaved
 }: {
   editingId: string | null;
-  canReview: boolean;
   onSaved: (versionId: string, questionId: string) => void;
 }) {
   const [data, setData] = useState<AdminQuestionInput>(emptyQuestion());
-  const [versionId, setVersionId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -221,8 +218,7 @@ function Editor({
     setMsg(null);
     try {
       const res = editingId ? await adminApi.editQuestion(editingId, data) : await adminApi.createQuestion(data);
-      setVersionId(res.id);
-      setMsg(`Saqlandi (versiya ${res.version}, holat: ${res.status})`);
+      setMsg(`Saqlandi — savol nashr etildi (versiya ${res.version})`);
       onSaved(res.id, res.question_id);
     } catch (e) {
       setErr(String((e as Error).message));
@@ -239,24 +235,11 @@ function Editor({
     }
   }
 
-  async function transition(kind: "submit" | "review" | "publish") {
-    if (!versionId) return;
-    setErr(null);
-    try {
-      if (kind === "submit") await adminApi.submitReview(versionId);
-      else if (kind === "review") await adminApi.review(versionId);
-      else await adminApi.publish(versionId);
-      setMsg(`Amal bajarildi: ${kind}`);
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
-  }
-
   return (
     <div className="editor-layout">
       <div className="editor-form">
         <h2>{editingId ? "Savolni tahrirlash" : "Yangi savol"}</h2>
-        {editingId && <p className="explain">Nashr etilgan savol tahriri yangi versiya yaratadi.</p>}
+        {editingId && <p className="explain">Saqlash tahrirni darhol nashr etadi (yangi versiya yaratiladi; eski versiya tarixiy urinishlar uchun saqlanadi).</p>}
         <label className="muted">Mavzu</label>
         <select value={data.topic} onChange={(e) => setData({ ...data, topic: e.target.value })}>
           {TOPIC_KEYS.map((tp) => <option key={tp} value={tp}>{topicLabel(tp)}</option>)}
@@ -294,13 +277,6 @@ function Editor({
 
         <div style={{ height: 12 }} />
         <button onClick={save}>Saqlash</button>
-        {versionId && (
-          <div className="review-actions">
-            <button className="secondary" onClick={() => transition("submit")}>Ko'rikka yuborish</button>
-            {canReview && <button className="secondary" onClick={() => transition("review")}>Ko'rildi</button>}
-            {canReview && <button onClick={() => transition("publish")}>Nashr etish</button>}
-          </div>
-        )}
         {msg && <p className="explain">{msg}</p>}
         {err && <p className="explain">{err}</p>}
       </div>
@@ -386,7 +362,7 @@ function QuestionList({ onEdit, onQa }: { onEdit: (id: string) => void; onQa: (i
   );
 }
 
-export function QuestionsSection({ canReview }: { canReview: boolean }) {
+export function QuestionsSection() {
   const [view, setView] = useState<"list" | "editor" | "qa">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [qaId, setQaId] = useState<string | null>(null);
@@ -405,13 +381,12 @@ export function QuestionsSection({ canReview }: { canReview: boolean }) {
       )}
       {view === "editor" && editingId === null && (
         <QuestionWizard
-          canReview={canReview}
           onSaved={(_vid, qid) => { setQaId(qid); }}
           onExitToList={() => setView("list")}
         />
       )}
       {view === "editor" && editingId !== null && (
-        <Editor editingId={editingId} canReview={canReview} onSaved={(_vid, qid) => { setQaId(qid); }} />
+        <Editor editingId={editingId} onSaved={(_vid, qid) => { setQaId(qid); }} />
       )}
       {view === "qa" && qaId && <QaPanel questionId={qaId} />}
     </div>
