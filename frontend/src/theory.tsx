@@ -49,6 +49,10 @@ const REPORT_REASONS: Array<[ReportReason, keyof Dict]> = [
   ["typo", "reasonTypo"],
   ["other", "reasonOther"]
 ];
+// Theory targets have no answer, so 'wrong_answer' is not a valid report reason for them.
+const THEORY_REPORT_TARGETS = new Set<ReportTarget>(
+  ["section", "article", "sign", "marking", "gesture", "light", "rule"]
+);
 
 function optionLabel(position: number): string {
   return "ABCDE"[position - 1] || String(position);
@@ -156,16 +160,18 @@ function Block({ block }: { block: TheoryBlock }) {
       const headers = (block.data?.headers as string[]) || [];
       const rows = (block.data?.rows as string[][]) || [];
       return (
-        <table className="theory-table">
-          {headers.length > 0 && (
-            <thead><tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
-          )}
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="theory-table-wrap">
+          <table className="theory-table">
+            {headers.length > 0 && (
+              <thead><tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
+            )}
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       );
     }
     case "practice_link":
@@ -191,14 +197,35 @@ function FavButton({ targetType, targetId }: { targetType: string; targetId: str
   const [favId, setFavId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Lightweight one-shot load on mount: reflect the real saved state so the toggle shows
+  // the correct label, Remove works, and we never add a duplicate. If the fetch fails we
+  // stay not-saved (no crash, no blank screen) — toggling remains available.
+  useEffect(() => {
+    let alive = true;
+    theoryApi.favorites()
+      .then((r) => {
+        if (!alive) return;
+        const match = r.favorites.find(
+          (f) => f.target_type === targetType && f.target_id === targetId
+        );
+        if (match) { setSaved(true); setFavId(match.id); }
+      })
+      .catch(() => { /* stay not-saved; user can still toggle */ });
+    return () => { alive = false; };
+  }, [targetType, targetId]);
+
   const toggle = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (saved && favId) {
-        await theoryApi.removeFavorite(favId);
-        setSaved(false);
-        setFavId(null);
+      if (saved) {
+        // Already saved -> Remove (guarded so we never issue a duplicate add).
+        if (favId) {
+          await theoryApi.removeFavorite(favId);
+          setSaved(false);
+          setFavId(null);
+        }
       } else {
         const r = await theoryApi.addFavorite(targetType, targetId);
         setSaved(true);
@@ -228,6 +255,10 @@ function ReportSheet({ targetType, targetId, onClose }:
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Omit 'wrong_answer' for theory targets (there is no answer to be wrong).
+  const reasons = THEORY_REPORT_TARGETS.has(targetType)
+    ? REPORT_REASONS.filter(([key]) => key !== "wrong_answer")
+    : REPORT_REASONS;
 
   const submit = async () => {
     if (!reason) return;
@@ -255,7 +286,7 @@ function ReportSheet({ targetType, targetId, onClose }:
         <div className="ui-stack" style={{ marginTop: 12 }}>
           <p className="ui-field-label">{t("reportReason")}</p>
           <div className="ui-chips">
-            {REPORT_REASONS.map(([key, labelKey]) => (
+            {reasons.map(([key, labelKey]) => (
               <Chip key={key} active={reason === key} onClick={() => setReason(key)}>{t(labelKey)}</Chip>
             ))}
           </div>
@@ -652,9 +683,13 @@ function ArticleView({ slug, onPractice }: { slug: string; onPractice: (id: stri
       </Card>
 
       <Card>
-        <div className="theory-blocks">
-          {data.blocks.map((b) => <Block key={b.id} block={b} />)}
-        </div>
+        {data.blocks.length === 0 ? (
+          <EmptyState message={t("articleNoContent")} />
+        ) : (
+          <div className="theory-blocks">
+            {data.blocks.map((b) => <Block key={b.id} block={b} />)}
+          </div>
+        )}
       </Card>
 
       {data.linked_question_count > 0 && (
@@ -912,14 +947,34 @@ function LightDetailView({ id, onBack }: { id: string; onBack: () => void }) {
 }
 
 // --------------------------------------------------------------------------- favorites
+// Human Uzbek labels for favorite target types (never show raw enum keys).
+const FAV_TYPE_LABELS: Record<string, keyof Dict> = {
+  sign: "favTypeSign",
+  article: "favTypeArticle",
+  marking: "favTypeMarking",
+  gesture: "favTypeGesture",
+  light: "favTypeLight",
+  section: "favTypeSection",
+  rule: "favTypeRule"
+};
+
+function favTargetTypeLabel(targetType: string): string {
+  const key = FAV_TYPE_LABELS[targetType];
+  return key ? t(key) : targetType;
+}
+
 function FavoritesView() {
   const { data, error, reload } = useFetch(() => theoryApi.favorites(), []);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const remove = async (favId: string) => {
     setRemoving(favId);
+    setRemoveError(null);
     try {
       await theoryApi.removeFavorite(favId);
       reload();
+    } catch (e) {
+      setRemoveError(String((e as Error).message));
     } finally {
       setRemoving(null);
     }
@@ -927,6 +982,7 @@ function FavoritesView() {
   return (
     <div className="ui-stack">
       <h2 className="ui-h1">{t("favorites")}</h2>
+      {removeError && <p className="ui-muted">{removeError}</p>}
       {!data ? (
         <LoadOrError error={error} onRetry={reload} rows={3} />
       ) : data.favorites.length === 0 ? (
@@ -934,11 +990,16 @@ function FavoritesView() {
       ) : (
         <div className="ui-stack ui-stack--sm">
           {data.favorites.map((f: FavoriteItem) => (
-            <ListRow key={f.id} title={f.target_id} subtitle={f.target_type}
-              right={
+            <Card key={f.id}>
+              <div className="ui-row ui-row--between">
+                <div className="ui-stack ui-stack--sm">
+                  <Badge tone="accent">{favTargetTypeLabel(f.target_type)}</Badge>
+                  <span className="ui-muted ui-text-sm">{f.target_id}</span>
+                </div>
                 <Button variant="secondary" disabled={removing === f.id}
                   onClick={() => remove(f.id)}>{t("removeFav")}</Button>
-              } />
+              </div>
+            </Card>
           ))}
         </div>
       )}

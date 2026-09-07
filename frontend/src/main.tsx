@@ -793,8 +793,13 @@ function ProfileTab({ user, onLogout, onOpenAdmin }: {
   const [showRanking, setShowRanking] = useState(true);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Load the profile with explicit error handling: a failed me() must not leave a blank
+  // form, so surface a retry. home() only feeds the decorative stats card, so its failure
+  // is left best-effort (the card simply hides).
+  const load = useCallback(() => {
+    setLoadError(null);
     api.me().then((r) => {
       setProfile(r.profile);
       if (r.profile) {
@@ -802,9 +807,22 @@ function ProfileTab({ user, onLogout, onOpenAdmin }: {
         setRankingName(r.profile.ranking_name || "");
         setShowRanking(r.profile.show_on_ranking);
       }
-    }).catch(() => undefined);
+    }).catch((e) => setLoadError(String((e as Error).message)));
     api.home().then(setHome).catch(() => undefined);
   }, []);
+  useEffect(load, [load]);
+
+  if (loadError) {
+    return (
+      <Screen>
+        <AppBar title={t("tabProfile")} />
+        <Card>
+          <EmptyState icon={<IconAlert size={36} />} message={t("loadFailed")}
+            action={<Button onClick={load}>{t("retry")}</Button>} />
+        </Card>
+      </Screen>
+    );
+  }
 
   async function save() {
     if (!profile?.display_name) return;

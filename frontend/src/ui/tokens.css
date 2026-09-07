@@ -262,9 +262,10 @@ body {
 }
 .ui-media__replay {
   position: absolute; right: var(--space-2); bottom: var(--space-2);
+  display: inline-flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.6); color: #fff; border: 0;
   border-radius: var(--radius-pill); padding: 6px 12px; font-size: var(--font-xs);
-  min-height: 32px; cursor: pointer;
+  min-height: 44px; cursor: pointer;
 }
 
 /* ------------------------------------------------------------------ Expandable */
@@ -293,7 +294,8 @@ body {
 
 .ui-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ui-chip {
-  font: inherit; font-size: var(--font-sm); min-height: 36px; padding: 0 var(--space-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: inherit; font-size: var(--font-sm); min-height: 44px; padding: 0 var(--space-3);
   border-radius: var(--radius-pill); border: 1px solid var(--border);
   background: var(--surface); color: var(--text); cursor: pointer;
 }
@@ -302,7 +304,8 @@ body {
 
 .ui-tabs { display: flex; gap: var(--space-1); background: var(--surface-2); padding: 4px; border-radius: var(--radius-pill); }
 .ui-tab {
-  flex: 1; font: inherit; font-size: var(--font-sm); min-height: 38px; border: 0;
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+  font: inherit; font-size: var(--font-sm); min-height: 44px; border: 0;
   border-radius: var(--radius-pill); background: transparent; color: var(--text-muted); cursor: pointer;
 }
 .ui-tab--active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-1); }

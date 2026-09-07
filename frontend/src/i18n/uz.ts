@@ -218,7 +218,17 @@ export const uz = {
   reasonImage: "Rasm bilan muammo",
   reasonOutdated: "Eskirgan qoida",
   reasonTypo: "Matn xatosi",
-  reasonOther: "Boshqa"
+  reasonOther: "Boshqa",
+
+  // ---- Theory polish: empty article + favorite target-type labels ----
+  articleNoContent: "Bu maqolada hozircha kontent yo'q",
+  favTypeSign: "Yo'l belgisi",
+  favTypeArticle: "Maqola",
+  favTypeMarking: "Yo'l chizig'i",
+  favTypeGesture: "Ishora",
+  favTypeLight: "Svetofor",
+  favTypeSection: "Bo'lim",
+  favTypeRule: "Qoida"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

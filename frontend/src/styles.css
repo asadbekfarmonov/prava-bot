@@ -102,8 +102,9 @@ button.marked { background: var(--warning); color: #fff; }
 .theory-callout.warn { background: var(--warning-soft); border: 1px solid var(--warning); }
 .theory-callout.tip { background: var(--success-soft); border: 1px solid var(--success); }
 .theory-callout.example { background: var(--accent-soft); border: 1px solid var(--accent); }
+.theory-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .theory-table { width: 100%; border-collapse: collapse; }
-.theory-table th, .theory-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+.theory-table th, .theory-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; white-space: nowrap; }
 .theory-compare-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .theory-badge { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: var(--accent); color: var(--accent-contrast); border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
 .theory-search-results { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
