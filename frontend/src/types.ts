@@ -68,6 +68,9 @@ export interface AnswerResult {
   short_explanation: string;
   options: GradedOption[];
   rule: RuleOut | null;
+  // Outcome clips revealed only AFTER answering (post-answer result).
+  success_media: MediaMeta | null;
+  fail_media: MediaMeta | null;
 }
 
 // ---- Mock exam (exam mode) ----
@@ -130,6 +133,9 @@ export interface MockReviewItem {
   correct_option_id: string | null;
   options: GradedOption[];
   rule: RuleOut | null;
+  // Outcome clips revealed only in review (post-completion).
+  success_media: MediaMeta | null;
+  fail_media: MediaMeta | null;
 }
 
 export interface MockReview extends MockAttemptState {
@@ -182,6 +188,9 @@ export interface AdminQuestionInput {
   is_sign_question: boolean;
   rule_codes: string[];
   media_id: string | null;
+  // Optional per-question outcome clips (To'g'ri / Noto'g'ri).
+  success_media_id: string | null;
+  fail_media_id: string | null;
   options: AdminOptionInput[];
 }
 
@@ -191,6 +200,8 @@ export interface AdminVersionOut {
   version: number;
   status: string;
   media_id: string | null;
+  success_media_id?: string | null;
+  fail_media_id?: string | null;
 }
 
 export interface QaCheck {

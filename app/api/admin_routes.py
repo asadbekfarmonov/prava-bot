@@ -61,6 +61,8 @@ def _to_content(payload: QuestionIn) -> authoring.QuestionContentInput:
         difficulty=payload.difficulty,
         ai_assisted=payload.ai_assisted,
         media_id=payload.media_id,
+        success_media_id=payload.success_media_id,
+        fail_media_id=payload.fail_media_id,
         sources=[
             authoring.SourceInput(url=s.url, note=s.note, kind=s.kind) for s in payload.sources
         ],
@@ -76,6 +78,8 @@ def _version_out(version) -> dict:
         "difficulty": version.difficulty,
         "ai_assisted": version.ai_assisted,
         "media_id": version.media_id,
+        "success_media_id": version.success_media_id,
+        "fail_media_id": version.fail_media_id,
         "authored_by_user_id": version.authored_by_user_id,
         "reviewed_by_user_id": version.reviewed_by_user_id,
         "approved_by_user_id": version.approved_by_user_id,

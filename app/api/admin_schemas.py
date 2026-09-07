@@ -43,6 +43,9 @@ class QuestionIn(BaseModel):
     difficulty: int = Field(default=1, ge=1, le=3)
     ai_assisted: bool = False
     media_id: str | None = None
+    # Optional per-question 'animated outcome' clips (revealed only post-answer).
+    success_media_id: str | None = None
+    fail_media_id: str | None = None
     sources: list[SourceIn] = Field(default_factory=list, max_length=20)
 
 

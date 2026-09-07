@@ -307,6 +307,10 @@ def submit_answer(
             for o in options
         ],
         "rule": _rule_for_version(db, version),
+        # Outcome clips revealed only AFTER answering (post-answer result). Absent
+        # from every pre-answer payload (_payload_for_version / next_*).
+        "success_media": _media_meta(db, version.success_media_id),
+        "fail_media": _media_meta(db, version.fail_media_id),
     }
 
 

@@ -91,3 +91,18 @@ matches exactly what was taken.
 Copy may say the mock "follows the real exam format (20 questions, 25 minutes, 18/20 to pass)"
 — all verified. Copy must **not** claim it is the official exam or an exact replica of the
 terminal UI unless/until that is verified with cited sources.
+
+## Animated outcome clips (reveal-after-answer)
+
+A question may carry an optional pair of per-version **outcome clips** — a SUCCESS clip
+and a FAIL clip (`success_media_id` / `fail_media_id` on `QuestionVersion`). After the
+learner answers, the app plays the SUCCESS clip when the answer is correct, otherwise the
+FAIL/collision clip, via the existing `QuestionMedia` component.
+
+**No-answer-leak (docs/spec/09):** the clips — and even their presence — are revealed
+**only** post-answer: in the Practice submit-answer **result** and the Mock **review**
+(post-completion). They are ABSENT from every pre-answer / live payload: the practice
+next-question payload, the live mock `_safe_question_payload` and `attempt_state` while
+`in_progress`, and the assessment live attempt payload. Otherwise a client could infer the
+correct answer from which clip is attached. The clips are per-version and immutable, so an
+edit forks a new version and historical attempts keep their pinned clips.

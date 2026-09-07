@@ -21,7 +21,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.admin_deps import require_role, resolve_effective_role
 from app.api.deps import DbSession
@@ -82,9 +82,17 @@ async def upload_media(
 
 
 def _is_published_media(db: DbSession, media_id: str) -> bool:
+    # Public when referenced by a PUBLISHED question version as the base image OR as an
+    # outcome clip (success/fail). Outcome clips are revealed only post-answer, but the
+    # bytes are served through the same content-addressed route, so they must be public
+    # once their question version is published.
     if db.scalar(
         select(QuestionVersion.id).where(
-            QuestionVersion.media_id == media_id,
+            or_(
+                QuestionVersion.media_id == media_id,
+                QuestionVersion.success_media_id == media_id,
+                QuestionVersion.fail_media_id == media_id,
+            ),
             QuestionVersion.status == VersionStatus.PUBLISHED,
         ).limit(1)
     ):

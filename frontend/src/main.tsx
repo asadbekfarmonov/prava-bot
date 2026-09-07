@@ -230,6 +230,15 @@ function PracticeRunner({ config, onExit, onLearnRule }:
                 )}
               </div>
 
+              {/* Outcome clip: revealed only AFTER answering. Success clip on a
+                  correct answer, else the fail/collision clip (if authored). */}
+              {result.is_correct && result.success_media && (
+                <QuestionMedia media={result.success_media} alt={t("outcomeSuccessAlt")} />
+              )}
+              {!result.is_correct && result.fail_media && (
+                <QuestionMedia media={result.fail_media} alt={t("outcomeFailAlt")} />
+              )}
+
               {correctOpt && (
                 <Expandable defaultOpen tone="success"
                   title={`${t("whyCorrectPrefix")} ${optionLabel(correctOpt.position)}?`}>
@@ -644,6 +653,13 @@ function ExamReview({ review, onExit }: { review: MockReview; onExit: () => void
             })}
             {item.rule && <div className="rule"><strong>{t("rule")}: {item.rule.code}</strong>
               <p className="explain">{item.rule.text}</p></div>}
+            {/* Outcome clip (post-completion review): matches this item's result. */}
+            {item.is_correct && item.success_media && (
+              <QuestionMedia media={item.success_media} alt={t("outcomeSuccessAlt")} />
+            )}
+            {!item.is_correct && item.fail_media && (
+              <QuestionMedia media={item.fail_media} alt={t("outcomeFailAlt")} />
+            )}
           </div>
         ))}
         <button className="secondary" onClick={onExit}>{t("backHome")}</button>

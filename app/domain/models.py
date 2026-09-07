@@ -162,6 +162,10 @@ class QuestionVersion(TimestampMixin, Base):
         nullable=False,
     )
     media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    # Optional per-question "animated outcome" clips (immutable per-version).
+    # Revealed ONLY after answering (practice result / mock review) — never live.
+    success_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
+    fail_media_id: Mapped[str | None] = mapped_column(ForeignKey("question_media.id"))
     difficulty: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # 1..3
     ai_assisted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     authored_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
@@ -173,7 +177,11 @@ class QuestionVersion(TimestampMixin, Base):
     question: Mapped[Question] = relationship(
         back_populates="versions", foreign_keys=[question_id]
     )
-    media: Mapped["QuestionMedia | None"] = relationship()
+    media: Mapped["QuestionMedia | None"] = relationship(foreign_keys=[media_id])
+    success_media: Mapped["QuestionMedia | None"] = relationship(
+        foreign_keys=[success_media_id]
+    )
+    fail_media: Mapped["QuestionMedia | None"] = relationship(foreign_keys=[fail_media_id])
     translations: Mapped[list["QuestionVersionTranslation"]] = relationship(
         back_populates="question_version", cascade="all, delete-orphan"
     )

@@ -81,6 +81,8 @@ class QuestionContentInput:
     difficulty: int = 1
     ai_assisted: bool = False
     media_id: str | None = None
+    success_media_id: str | None = None
+    fail_media_id: str | None = None
     sources: list[SourceInput] = field(default_factory=list)
 
 
@@ -146,6 +148,11 @@ def _apply_content(db: Session, version: QuestionVersion, data: QuestionContentI
         version.media_id = data.media_id
     else:
         version.media_id = None
+    # Optional per-question outcome clips (success/fail). Fully optional; their
+    # existence is enforced by the publish floor (validate_version_for_publish ->
+    # HTTP 422) so a nonexistent id is rejected consistently at save=live time.
+    version.success_media_id = data.success_media_id or None
+    version.fail_media_id = data.fail_media_id or None
     db.flush()
 
     db.add(
@@ -415,6 +422,13 @@ def validate_version_for_publish(db: Session, version: QuestionVersion) -> list[
 
             if not get_media_storage().exists(media.storage_key):
                 errors.append("Media obyekt xotirasida mavjud emas.")
+
+    # Optional outcome clips: if set, the referenced media must exist (422 if not).
+    # Their presence never affects the floor for questions that omit them.
+    if version.success_media_id and db.get(QuestionMedia, version.success_media_id) is None:
+        errors.append("Natija animatsiyasi (to'g'ri) topilmadi.")
+    if version.fail_media_id and db.get(QuestionMedia, version.fail_media_id) is None:
+        errors.append("Natija animatsiyasi (noto'g'ri) topilmadi.")
     return errors
 
 

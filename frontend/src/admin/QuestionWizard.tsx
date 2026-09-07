@@ -7,7 +7,7 @@
 // text nodes (auto-escaped) — never dangerouslySetInnerHTML.
 import { useState } from "react";
 import { adminApi } from "../api";
-import { TOPIC_LABELS, topicLabel } from "../i18n/uz";
+import { t, TOPIC_LABELS, topicLabel } from "../i18n/uz";
 import type { AdminQuestionInput } from "../types";
 import { emptyQuestion, LivePreview, RulePicker, StatusBadge } from "./legacy";
 
@@ -93,6 +93,18 @@ export function QuestionWizard({
     try {
       const m = await adminApi.uploadMedia(file);
       setData((d) => ({ ...d, media_id: m.id }));
+      setMsg("Media yuklandi");
+    } catch (e) {
+      setErr(String((e as Error).message));
+    }
+  }
+
+  // Optional per-question outcome clips (revealed only AFTER answering).
+  async function uploadOutcome(file: File, field: "success_media_id" | "fail_media_id") {
+    setErr(null);
+    try {
+      const m = await adminApi.uploadMedia(file);
+      setData((d) => ({ ...d, [field]: m.id }));
       setMsg("Media yuklandi");
     } catch (e) {
       setErr(String((e as Error).message));
@@ -218,6 +230,31 @@ export function QuestionWizard({
               </div>
             )}
             <p className="muted">Savol matni yoki media biriktirilishi shart (biri yetarli).</p>
+
+            <h3>{t("outcomeClipsTitle")}</h3>
+            <p className="muted">{t("outcomeClipsHint")}</p>
+            <label className="muted">{t("outcomeSuccessClip")}</label>
+            <input type="file" accept="image/gif,video/mp4,video/webm"
+              onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "success_media_id")} />
+            {data.success_media_id && (
+              <div className="wizard-media">
+                <p className="muted">success_media_id: {data.success_media_id}</p>
+                <button type="button" className="secondary" onClick={() => setData({ ...data, success_media_id: null })}>
+                  {t("outcomeRemove")}
+                </button>
+              </div>
+            )}
+            <label className="muted">{t("outcomeFailClip")}</label>
+            <input type="file" accept="image/gif,video/mp4,video/webm"
+              onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "fail_media_id")} />
+            {data.fail_media_id && (
+              <div className="wizard-media">
+                <p className="muted">fail_media_id: {data.fail_media_id}</p>
+                <button type="button" className="secondary" onClick={() => setData({ ...data, fail_media_id: null })}>
+                  {t("outcomeRemove")}
+                </button>
+              </div>
+            )}
           </>
         )}
 

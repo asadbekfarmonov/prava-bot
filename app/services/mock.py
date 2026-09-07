@@ -659,6 +659,14 @@ def review(db: Session, user: User, attempt_id: str) -> dict:
                     for o in options
                 ],
                 "rule": _rule_for_version(db, mq.question_version_id),
+                # Outcome clips revealed only in review (post-completion). Never in
+                # _safe_question_payload / attempt_state while IN_PROGRESS.
+                "success_media": _media_meta(
+                    db, version.success_media_id if version else None
+                ),
+                "fail_media": _media_meta(
+                    db, version.fail_media_id if version else None
+                ),
             }
         )
 

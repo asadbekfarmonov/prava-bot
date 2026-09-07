@@ -130,3 +130,11 @@ The v1 trainer draws from ordinary questions where `topic = road_signs` and
 See [11-content-acquisition.md](11-content-acquisition.md) and research §25: current YHQ text
 + stable clause ids; reusable official bank/media rights; practical-exam details; regional
 prices; official exam-interface languages; any official topic distribution.
+
+## Outcome clips (animated outcome questions)
+
+Outcome clips are **standard muted `webm` / `mp4` / `gif`** served by the existing media
+pipeline — there is **no** Rive/WASM runtime, no new media type, and no CSP change. Authors
+produce them externally (e.g. Rive or After Effects exported to webm/mp4/gif) and upload
+them like any other media. Each question optionally pins a SUCCESS clip and a FAIL clip;
+they are revealed only after answering (see [12-ui-exam-mode.md](12-ui-exam-mode.md)).

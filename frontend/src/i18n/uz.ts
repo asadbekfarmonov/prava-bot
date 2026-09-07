@@ -228,7 +228,17 @@ export const uz = {
   favTypeGesture: "Ishora",
   favTypeLight: "Svetofor",
   favTypeSection: "Bo'lim",
-  favTypeRule: "Qoida"
+  favTypeRule: "Qoida",
+
+  // ---- Outcome clips (per-question animated outcome; revealed post-answer) ----
+  outcomeSuccessAlt: "To'g'ri javob animatsiyasi",
+  outcomeFailAlt: "Noto'g'ri javob animatsiyasi",
+  outcomeClipsTitle: "Natija animatsiyasi (ixtiyoriy)",
+  outcomeClipsHint: "Javobdan keyin ko'rsatiladi — savol matnida ko'rinmaydi.",
+  outcomeSuccessClip: "To'g'ri javob roliki",
+  outcomeFailClip: "Noto'g'ri javob roliki",
+  outcomeUpload: "Rolik yuklash",
+  outcomeRemove: "O'chirish"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {
