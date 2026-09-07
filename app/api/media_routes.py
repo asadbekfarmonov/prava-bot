@@ -16,6 +16,7 @@ from fastapi import (
     Depends,
     Form,
     HTTPException,
+    Query,
     Request,
     Response,
     UploadFile,
@@ -79,6 +80,28 @@ async def upload_media(
     db.commit()
     db.refresh(media)
     return _media_out(media)
+
+
+@router.get("/api/admin/media")
+def list_media(
+    user: AuthorUser,
+    db: DbSession,
+    q: Annotated[str | None, Query(max_length=128)] = None,
+    media_type: Annotated[str | None, Query(max_length=16)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict:
+    """Admin-gated media library listing (paginated, filterable, with in_use flags).
+
+    ``limit`` is bounded [1, 100] at the query layer AND re-clamped server-side in
+    ``media_service.list_media`` (defense-in-depth). An invalid ``media_type`` -> 400.
+    """
+    try:
+        return media_service.list_media(
+            db, q=q, media_type=media_type, limit=limit, offset=offset
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 def _is_published_media(db: DbSession, media_id: str) -> bool:

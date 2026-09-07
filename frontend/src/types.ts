@@ -678,3 +678,26 @@ export interface ReviewQueueOut {
   gestures: ReviewQueueRow[];
   lights: ReviewQueueRow[];
 }
+
+// ---- Admin media library (GET /api/admin/media) ----
+export interface MediaListItem {
+  id: string;
+  media_type: string; // "image" | "gif" | "video"
+  content_type: string;
+  content_hash: string;
+  url: string;
+  alt: string | null;
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  byte_size: number;
+  in_use: boolean;
+  created_at: string | null;
+}
+
+export interface MediaListOut {
+  total: number;
+  limit: number;
+  offset: number;
+  items: MediaListItem[];
+}

@@ -238,7 +238,36 @@ export const uz = {
   outcomeSuccessClip: "To'g'ri javob roliki",
   outcomeFailClip: "Noto'g'ri javob roliki",
   outcomeUpload: "Rolik yuklash",
-  outcomeRemove: "O'chirish"
+  outcomeRemove: "O'chirish",
+
+  // ---- Media library + reusable media picker (admin) ----
+  mediaLibrary: "Media kutubxona",
+  mediaLibraryHint: "Yuklangan barcha rasm, GIF va videolar",
+  chooseMedia: "Media tanlash",
+  existingMedia: "Mavjud media",
+  uploadNew: "Yangi yuklash",
+  mediaSearchPlaceholder: "Qidirish (nomi, turi, ID)...",
+  mediaFilterAll: "Barchasi",
+  mediaFilterImage: "Rasm",
+  mediaFilterGif: "GIF",
+  mediaFilterVideo: "Video",
+  inUse: "Ishlatilmoqda",
+  notUsed: "Ishlatilmagan",
+  mediaEmpty: "Media topilmadi",
+  mediaLoadFailed: "Media yuklab bo'lmadi",
+  mediaSelect: "Tanlash",
+  mediaRemove: "Olib tashlash",
+  mediaUploading: "Yuklanmoqda...",
+  mediaLoadMore: "Ko'proq yuklash",
+  mediaChooseFile: "Fayl tanlang",
+  mediaDetailType: "Turi",
+  mediaDetailSize: "Hajmi",
+  mediaDetailDimensions: "O'lchamlari",
+  mediaDetailDuration: "Davomiyligi",
+  mediaDetailHash: "Kontent xesh",
+  mediaDetailCreated: "Yaratilgan",
+  mediaClose: "Yopish",
+  mediaBaseImage: "Asosiy rasm"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

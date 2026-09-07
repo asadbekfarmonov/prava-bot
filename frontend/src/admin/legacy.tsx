@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { adminApi, theoryApi } from "../api";
 import { t, TOPIC_LABELS, topicLabel } from "../i18n/uz";
 import { QuestionWizard } from "./QuestionWizard";
+import { MediaPicker, type MediaPickerSelection } from "./MediaPicker";
+import { QuestionMedia } from "../ui/components";
 import type {
   AdminOverview,
   AdminQuestionInput,
@@ -227,25 +229,22 @@ function Editor({
     }
   }
 
-  async function uploadMedia(file: File) {
-    try {
-      const m = await adminApi.uploadMedia(file);
-      setData((d) => ({ ...d, media_id: m.id }));
-      setMsg("Media yuklandi");
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
+  // Media is chosen through the reusable MediaPicker (reuse existing OR upload fresh).
+  const [picker, setPicker] = useState<null | "base" | "success" | "fail">(null);
+  const [previews, setPreviews] = useState<Record<string, { url: string; media_type: string }>>({});
+
+  function mediaKind(contentType: string): string {
+    if (contentType.startsWith("video")) return "video";
+    if (contentType === "image/gif") return "gif";
+    return "image";
   }
 
-  // Optional per-question outcome clips (revealed only AFTER answering).
-  async function uploadOutcome(file: File, field: "success_media_id" | "fail_media_id") {
-    try {
-      const m = await adminApi.uploadMedia(file);
-      setData((d) => ({ ...d, [field]: m.id }));
-      setMsg("Media yuklandi");
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
+  function onPickMedia(media: MediaPickerSelection) {
+    if (!picker) return;
+    const field = picker === "base" ? "media_id" : picker === "success" ? "success_media_id" : "fail_media_id";
+    setData((d) => ({ ...d, [field]: media.id }));
+    setPreviews((prev) => ({ ...prev, [field]: { url: media.url, media_type: mediaKind(media.content_type) } }));
+    setMsg("Media tanlandi");
   }
 
   return (
@@ -284,31 +283,56 @@ function Editor({
 
         <RulePicker selected={data.rule_codes} onChange={(codes) => setData({ ...data, rule_codes: codes })} />
 
-        <label className="muted">Media (rasm/gif/video)</label>
-        <input type="file" onChange={(e) => e.target.files && e.target.files[0] && uploadMedia(e.target.files[0])} />
-        {data.media_id && <p className="muted">media_id: {data.media_id}</p>}
+        <label className="muted">{t("mediaBaseImage")} (rasm/gif/video)</label>
+        <div className="media-field">
+          <button type="button" className="secondary" onClick={() => setPicker("base")}>{t("chooseMedia")}</button>
+          {data.media_id && (
+            <div className="media-field__current">
+              {previews.media_id && <QuestionMedia url={previews.media_id.url} mediaType={previews.media_id.media_type} />}
+              <p className="muted">media_id: {data.media_id}{" "}
+                <button type="button" className="secondary" onClick={() => setData({ ...data, media_id: null })}>{t("mediaRemove")}</button>
+              </p>
+            </div>
+          )}
+        </div>
 
         <h3>{t("outcomeClipsTitle")}</h3>
         <p className="muted">{t("outcomeClipsHint")}</p>
         <label className="muted">{t("outcomeSuccessClip")}</label>
-        <input type="file" accept="image/gif,video/mp4,video/webm" onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "success_media_id")} />
-        {data.success_media_id && (
-          <p className="muted">success_media_id: {data.success_media_id}{" "}
-            <button type="button" className="secondary" onClick={() => setData({ ...data, success_media_id: null })}>{t("outcomeRemove")}</button>
-          </p>
-        )}
+        <div className="media-field">
+          <button type="button" className="secondary" onClick={() => setPicker("success")}>{t("chooseMedia")}</button>
+          {data.success_media_id && (
+            <div className="media-field__current">
+              {previews.success_media_id && <QuestionMedia url={previews.success_media_id.url} mediaType={previews.success_media_id.media_type} />}
+              <p className="muted">success_media_id: {data.success_media_id}{" "}
+                <button type="button" className="secondary" onClick={() => setData({ ...data, success_media_id: null })}>{t("outcomeRemove")}</button>
+              </p>
+            </div>
+          )}
+        </div>
         <label className="muted">{t("outcomeFailClip")}</label>
-        <input type="file" accept="image/gif,video/mp4,video/webm" onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "fail_media_id")} />
-        {data.fail_media_id && (
-          <p className="muted">fail_media_id: {data.fail_media_id}{" "}
-            <button type="button" className="secondary" onClick={() => setData({ ...data, fail_media_id: null })}>{t("outcomeRemove")}</button>
-          </p>
-        )}
+        <div className="media-field">
+          <button type="button" className="secondary" onClick={() => setPicker("fail")}>{t("chooseMedia")}</button>
+          {data.fail_media_id && (
+            <div className="media-field__current">
+              {previews.fail_media_id && <QuestionMedia url={previews.fail_media_id.url} mediaType={previews.fail_media_id.media_type} />}
+              <p className="muted">fail_media_id: {data.fail_media_id}{" "}
+                <button type="button" className="secondary" onClick={() => setData({ ...data, fail_media_id: null })}>{t("outcomeRemove")}</button>
+              </p>
+            </div>
+          )}
+        </div>
 
         <div style={{ height: 12 }} />
         <button onClick={save}>Saqlash</button>
         {msg && <p className="explain">{msg}</p>}
         {err && <p className="explain">{err}</p>}
+        <MediaPicker
+          open={picker !== null}
+          onClose={() => setPicker(null)}
+          onSelect={onPickMedia}
+          accept={picker === "base" ? undefined : "image/gif,video/mp4,video/webm"}
+        />
       </div>
       <div className="editor-preview">
         <LivePreview data={data} />

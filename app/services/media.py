@@ -19,7 +19,7 @@ import hashlib
 import io
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -271,3 +271,152 @@ def media_meta(db: Session, media_id: str | None) -> dict | None:
         "height": media.height,
         "duration_ms": media.duration_ms,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Admin media library — bulk in-use computation + paginated listing.
+# --------------------------------------------------------------------------- #
+def referenced_media_ids(db: Session) -> set[str]:
+    """All media ids referenced by ANY version/container (published or not).
+
+    Computed as a BULK set (one SELECT DISTINCT per referencing column — a small
+    fixed number of queries), NEVER per-row, so callers can test membership in O(1)
+    while listing media. Covers question base image + outcome clips, theory section
+    icons, article hero/block media, and every catalogue container + its versions.
+    """
+    from app.domain.models import (
+        ControllerGesture,
+        ControllerGestureVersion,
+        QuestionVersion,
+        RoadMarking,
+        RoadMarkingVersion,
+        RoadSign,
+        RoadSignVersion,
+        TheoryArticleVersion,
+        TheoryContentBlock,
+        TheorySection,
+        TrafficLightState,
+        TrafficLightStateVersion,
+    )
+
+    columns = (
+        QuestionVersion.media_id,
+        QuestionVersion.success_media_id,
+        QuestionVersion.fail_media_id,
+        TheorySection.icon_media_id,
+        TheoryArticleVersion.hero_media_id,
+        TheoryContentBlock.media_id,
+        RoadSign.media_id,
+        RoadSignVersion.media_id,
+        RoadMarking.media_id,
+        RoadMarkingVersion.media_id,
+        ControllerGesture.media_id,
+        ControllerGesture.animation_media_id,
+        ControllerGestureVersion.media_id,
+        ControllerGestureVersion.animation_media_id,
+        TrafficLightState.media_id,
+        TrafficLightStateVersion.media_id,
+    )
+
+    referenced: set[str] = set()
+    for col in columns:
+        for mid in db.scalars(select(col).where(col.is_not(None)).distinct()):
+            if mid:
+                referenced.add(mid)
+    return referenced
+
+
+_MEDIA_LIST_MAX_LIMIT = 100  # server-side hard cap (defense-in-depth clamp).
+
+
+def list_media(
+    db: Session,
+    *,
+    q: str | None = None,
+    media_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Paginated admin media listing (newest first) with an ``in_use`` flag.
+
+    - ``limit`` is clamped to [1, 100] (server max), ``offset`` to >= 0.
+    - ``q`` is a case-insensitive substring match on content_type OR uz alt_text OR id.
+    - ``media_type`` filters by MediaType value ('image'|'gif'|'video'); an invalid
+      value raises ValueError (mapped to HTTP 400 in the route).
+    - ``in_use`` is resolved against a single bulk set (see ``referenced_media_ids``).
+    """
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(_MEDIA_LIST_MAX_LIMIT, limit))
+    try:
+        offset = int(offset)
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(0, offset)
+
+    mt_enum: MediaType | None = None
+    if media_type:
+        try:
+            mt_enum = MediaType(media_type)
+        except ValueError as exc:
+            raise ValueError(f"Yaroqsiz media turi: {media_type}") from exc
+
+    # LEFT JOIN the uz alt-text translation (unique per (media, language) => no fan-out).
+    join_cond = (QuestionMediaTranslation.media_id == QuestionMedia.id) & (
+        QuestionMediaTranslation.language == Language.UZ
+    )
+
+    conditions = []
+    if mt_enum is not None:
+        conditions.append(QuestionMedia.media_type == mt_enum)
+    if q:
+        like = f"%{q.lower()}%"
+        conditions.append(
+            or_(
+                func.lower(QuestionMedia.content_type).like(like),
+                func.lower(QuestionMediaTranslation.alt_text).like(like),
+                func.lower(QuestionMedia.id).like(like),
+            )
+        )
+
+    count_stmt = (
+        select(func.count(func.distinct(QuestionMedia.id)))
+        .select_from(QuestionMedia)
+        .outerjoin(QuestionMediaTranslation, join_cond)
+    )
+    rows_stmt = select(QuestionMedia, QuestionMediaTranslation.alt_text).outerjoin(
+        QuestionMediaTranslation, join_cond
+    )
+    for cond in conditions:
+        count_stmt = count_stmt.where(cond)
+        rows_stmt = rows_stmt.where(cond)
+
+    total = int(db.scalar(count_stmt) or 0)
+    rows_stmt = (
+        rows_stmt.order_by(QuestionMedia.created_at.desc(), QuestionMedia.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = db.execute(rows_stmt).all()
+
+    referenced = referenced_media_ids(db)
+    items = [
+        {
+            "id": media.id,
+            "media_type": media.media_type.value,
+            "content_type": media.content_type,
+            "content_hash": media.content_hash,
+            "url": f"/api/media/{media.id}/{media.content_hash}",
+            "alt": alt_text or None,
+            "width": media.width,
+            "height": media.height,
+            "duration_ms": media.duration_ms,
+            "byte_size": media.byte_size,
+            "in_use": media.id in referenced,
+            "created_at": media.created_at.isoformat() if media.created_at else None,
+        }
+        for media, alt_text in rows
+    ]
+    return {"total": total, "limit": limit, "offset": offset, "items": items}

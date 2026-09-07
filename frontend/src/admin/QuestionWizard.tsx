@@ -10,6 +10,8 @@ import { adminApi } from "../api";
 import { t, TOPIC_LABELS, topicLabel } from "../i18n/uz";
 import type { AdminQuestionInput } from "../types";
 import { emptyQuestion, LivePreview, RulePicker, StatusBadge } from "./legacy";
+import { MediaPicker, type MediaPickerSelection } from "./MediaPicker";
+import { QuestionMedia } from "../ui/components";
 
 const TOPIC_KEYS = Object.keys(TOPIC_LABELS);
 
@@ -88,27 +90,22 @@ export function QuestionWizard({
       return { ...d, options: remaining };
     });
 
-  async function uploadMedia(file: File) {
-    setErr(null);
-    try {
-      const m = await adminApi.uploadMedia(file);
-      setData((d) => ({ ...d, media_id: m.id }));
-      setMsg("Media yuklandi");
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
+  // Media is chosen through the reusable MediaPicker (reuse existing OR upload fresh).
+  const [picker, setPicker] = useState<null | "base" | "success" | "fail">(null);
+  const [previews, setPreviews] = useState<Record<string, { url: string; media_type: string }>>({});
+
+  function mediaKind(contentType: string): string {
+    if (contentType.startsWith("video")) return "video";
+    if (contentType === "image/gif") return "gif";
+    return "image";
   }
 
-  // Optional per-question outcome clips (revealed only AFTER answering).
-  async function uploadOutcome(file: File, field: "success_media_id" | "fail_media_id") {
-    setErr(null);
-    try {
-      const m = await adminApi.uploadMedia(file);
-      setData((d) => ({ ...d, [field]: m.id }));
-      setMsg("Media yuklandi");
-    } catch (e) {
-      setErr(String((e as Error).message));
-    }
+  function onPickMedia(media: MediaPickerSelection) {
+    if (!picker) return;
+    const field = picker === "base" ? "media_id" : picker === "success" ? "success_media_id" : "fail_media_id";
+    setData((d) => ({ ...d, [field]: media.id }));
+    setPreviews((prev) => ({ ...prev, [field]: { url: media.url, media_type: mediaKind(media.content_type) } }));
+    setMsg("Media tanlandi");
   }
 
   // save = live: create on first save (question is published), edit the same question
@@ -219,42 +216,49 @@ export function QuestionWizard({
           <>
             <label className="muted">Savol matni (uz)</label>
             <textarea value={data.prompt} onChange={(e) => setData({ ...data, prompt: e.target.value })} />
-            <label className="muted">Media (rasm/gif/video)</label>
-            <input type="file" onChange={(e) => e.target.files && e.target.files[0] && uploadMedia(e.target.files[0])} />
-            {data.media_id && (
-              <div className="wizard-media">
-                <p className="muted">media_id: {data.media_id}</p>
-                <button type="button" className="secondary" onClick={() => setData({ ...data, media_id: null })}>
-                  Mediani olib tashlash
-                </button>
-              </div>
-            )}
+            <label className="muted">{t("mediaBaseImage")} (rasm/gif/video)</label>
+            <div className="media-field">
+              <button type="button" className="secondary" onClick={() => setPicker("base")}>{t("chooseMedia")}</button>
+              {data.media_id && (
+                <div className="wizard-media media-field__current">
+                  {previews.media_id && <QuestionMedia url={previews.media_id.url} mediaType={previews.media_id.media_type} />}
+                  <p className="muted">media_id: {data.media_id}</p>
+                  <button type="button" className="secondary" onClick={() => setData({ ...data, media_id: null })}>
+                    {t("mediaRemove")}
+                  </button>
+                </div>
+              )}
+            </div>
             <p className="muted">Savol matni yoki media biriktirilishi shart (biri yetarli).</p>
 
             <h3>{t("outcomeClipsTitle")}</h3>
             <p className="muted">{t("outcomeClipsHint")}</p>
             <label className="muted">{t("outcomeSuccessClip")}</label>
-            <input type="file" accept="image/gif,video/mp4,video/webm"
-              onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "success_media_id")} />
-            {data.success_media_id && (
-              <div className="wizard-media">
-                <p className="muted">success_media_id: {data.success_media_id}</p>
-                <button type="button" className="secondary" onClick={() => setData({ ...data, success_media_id: null })}>
-                  {t("outcomeRemove")}
-                </button>
-              </div>
-            )}
+            <div className="media-field">
+              <button type="button" className="secondary" onClick={() => setPicker("success")}>{t("chooseMedia")}</button>
+              {data.success_media_id && (
+                <div className="wizard-media media-field__current">
+                  {previews.success_media_id && <QuestionMedia url={previews.success_media_id.url} mediaType={previews.success_media_id.media_type} />}
+                  <p className="muted">success_media_id: {data.success_media_id}</p>
+                  <button type="button" className="secondary" onClick={() => setData({ ...data, success_media_id: null })}>
+                    {t("outcomeRemove")}
+                  </button>
+                </div>
+              )}
+            </div>
             <label className="muted">{t("outcomeFailClip")}</label>
-            <input type="file" accept="image/gif,video/mp4,video/webm"
-              onChange={(e) => e.target.files && e.target.files[0] && uploadOutcome(e.target.files[0], "fail_media_id")} />
-            {data.fail_media_id && (
-              <div className="wizard-media">
-                <p className="muted">fail_media_id: {data.fail_media_id}</p>
-                <button type="button" className="secondary" onClick={() => setData({ ...data, fail_media_id: null })}>
-                  {t("outcomeRemove")}
-                </button>
-              </div>
-            )}
+            <div className="media-field">
+              <button type="button" className="secondary" onClick={() => setPicker("fail")}>{t("chooseMedia")}</button>
+              {data.fail_media_id && (
+                <div className="wizard-media media-field__current">
+                  {previews.fail_media_id && <QuestionMedia url={previews.fail_media_id.url} mediaType={previews.fail_media_id.media_type} />}
+                  <p className="muted">fail_media_id: {data.fail_media_id}</p>
+                  <button type="button" className="secondary" onClick={() => setData({ ...data, fail_media_id: null })}>
+                    {t("outcomeRemove")}
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -342,6 +346,13 @@ export function QuestionWizard({
 
       {msg && <p className="explain">{msg}</p>}
       {err && <p className="explain">{err}</p>}
+
+      <MediaPicker
+        open={picker !== null}
+        onClose={() => setPicker(null)}
+        onSelect={onPickMedia}
+        accept={picker === "base" ? undefined : "image/gif,video/mp4,video/webm"}
+      />
     </div>
   );
 }

@@ -207,6 +207,16 @@ export const adminApi = {
     return (await res.json()) as import("./types").MediaOut;
   },
 
+  listMedia: (params: { q?: string; media_type?: string; limit?: number; offset?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (params.q) p.set("q", params.q);
+    if (params.media_type) p.set("media_type", params.media_type);
+    if (params.limit != null) p.set("limit", String(params.limit));
+    if (params.offset != null) p.set("offset", String(params.offset));
+    const qs = p.toString();
+    return request<import("./types").MediaListOut>(`/api/admin/media${qs ? `?${qs}` : ""}`);
+  },
+
   // ---- Theory studio (docs/spec/19). All server-side role-gated. ----
   theoryListSections: (includeUnpublished = true) =>
     request<{ sections: import("./types").AdminSectionListItem[] }>(

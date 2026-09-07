@@ -6,6 +6,7 @@ import { AdminBottomNav } from "./AdminBottomNav";
 import { QuickCreateSheet } from "./QuickCreateSheet";
 import type { QuickCreateKind } from "./QuickCreateSheet";
 import { Dashboard, QuestionsSection, TheorySection, ReviewQueue, ReportsQueue } from "./legacy";
+import { MediaLibrary } from "./MediaLibrary";
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -63,7 +64,7 @@ export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }
       case "rules":
         return <Placeholder title="Qoidalar" />;
       case "media":
-        return <Placeholder title="Media kutubxona" />;
+        return <MediaLibrary />;
       case "admin-search":
         return <Placeholder title="Global qidiruv" />;
       case "admins":
