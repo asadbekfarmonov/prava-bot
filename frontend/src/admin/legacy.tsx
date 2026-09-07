@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, theoryApi } from "../api";
 import { TOPIC_LABELS, topicLabel } from "../i18n/uz";
+import { QuestionWizard } from "./QuestionWizard";
 import type {
   AdminOverview,
   AdminQuestionInput,
@@ -38,13 +39,13 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const STATUS_KEYS = Object.keys(STATUS_LABELS);
 
-function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status }: { status: string }) {
   return <span className={"badge badge-" + status}>{STATUS_LABELS[status] || status}</span>;
 }
 
 type PreviewMode = "practice" | "exam" | "mobile";
 
-function emptyQuestion(): AdminQuestionInput {
+export function emptyQuestion(): AdminQuestionInput {
   return {
     category: "B",
     topic: "general_rules",
@@ -126,7 +127,7 @@ export function Dashboard({ onGoReports, onGoReview }: { onGoReports: () => void
 // --------------------------------------------------------------------------- //
 // Shared: RulePicker (rule_codes chips) — reused by question + theory editors
 // --------------------------------------------------------------------------- //
-function RulePicker({ selected, onChange }: { selected: string[]; onChange: (codes: string[]) => void }) {
+export function RulePicker({ selected, onChange, onPick }: { selected: string[]; onChange: (codes: string[]) => void; onPick?: (rule: AdminRuleOut, picked: boolean) => void }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<AdminRuleOut[]>([]);
   useEffect(() => {
@@ -147,7 +148,7 @@ function RulePicker({ selected, onChange }: { selected: string[]; onChange: (cod
               key={r.id}
               type="button"
               className={"rule-chip" + (picked ? " picked" : "") + (r.status !== "active" ? " superseded" : "")}
-              onClick={() => onChange(picked ? selected.filter((c) => c !== r.code) : [...selected, r.code])}
+              onClick={() => { onChange(picked ? selected.filter((c) => c !== r.code) : [...selected, r.code]); onPick?.(r, !picked); }}
             >
               {r.code} — {r.title || r.text.slice(0, 40)}
               {r.status !== "active" ? " (eskirgan!)" : ""}
@@ -163,7 +164,7 @@ function RulePicker({ selected, onChange }: { selected: string[]; onChange: (cod
 // --------------------------------------------------------------------------- //
 // Question editor (existing flow, unchanged behaviour; topics now use Uzbek labels)
 // --------------------------------------------------------------------------- //
-function LivePreview({ data }: { data: AdminQuestionInput }) {
+export function LivePreview({ data }: { data: AdminQuestionInput }) {
   const [mode, setMode] = useState<PreviewMode>("practice");
   return (
     <div className={"preview " + (mode === "mobile" ? "preview-mobile" : "")}>
@@ -402,7 +403,14 @@ export function QuestionsSection({ canReview }: { canReview: boolean }) {
           onQa={(id) => { setQaId(id); setView("qa"); }}
         />
       )}
-      {view === "editor" && (
+      {view === "editor" && editingId === null && (
+        <QuestionWizard
+          canReview={canReview}
+          onSaved={(_vid, qid) => { setQaId(qid); }}
+          onExitToList={() => setView("list")}
+        />
+      )}
+      {view === "editor" && editingId !== null && (
         <Editor editingId={editingId} canReview={canReview} onSaved={(_vid, qid) => { setQaId(qid); }} />
       )}
       {view === "qa" && qaId && <QaPanel questionId={qaId} />}
