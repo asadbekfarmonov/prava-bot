@@ -198,7 +198,27 @@ export const uz = {
   firstExamBtn: "Birinchi imtihonni boshlash",
   rankingNeedMsg: "Reyting uchun kamida 20 ta savol yeching.",
   loadFailed: "Yuklab bo'lmadi",
-  noData: "Ma'lumot yo'q"
+  noData: "Ma'lumot yo'q",
+
+  // ---- Theory redesign: rule view, search types, content report ----
+  articleKind: "Maqola",
+  ruleView: "Qoida",
+  ruleMaterials: "Shu qoidaga oid materiallar",
+  ruleNoMaterial: "Bu qoida bo'yicha material topilmadi",
+  linkedArticles: "Maqolalar",
+  linkedSigns: "Yo'l belgilari",
+  cancel: "Bekor qilish",
+  reportIssue: "Xatolik haqida xabar berish",
+  reportReason: "Xatolik sababi",
+  reportSend: "Yuborish",
+  reportSent: "Xabaringiz yuborildi",
+  reportNotePlaceholder: "Izoh (ixtiyoriy)",
+  reasonWrongAnswer: "Noto'g'ri javob",
+  reasonUnclear: "Tushuntirish tushunarsiz",
+  reasonImage: "Rasm bilan muammo",
+  reasonOutdated: "Eskirgan qoida",
+  reasonTypo: "Matn xatosi",
+  reasonOther: "Boshqa"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

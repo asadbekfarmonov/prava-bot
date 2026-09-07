@@ -150,6 +150,16 @@ export const theoryApi = {
     request<import("./types").TheoryPracticeStart>("/api/theory/practice/start", {
       method: "POST",
       body: JSON.stringify({ target_type: targetType, target_id: targetId })
+    }),
+  report: (
+    targetType: "section" | "article" | "sign" | "marking" | "gesture" | "light" | "rule",
+    targetId: string,
+    reason: "wrong_answer" | "unclear_explanation" | "image_problem" | "outdated_rule" | "typo" | "other",
+    note?: string
+  ) =>
+    request<{ id: string; status: string }>("/api/theory/reports", {
+      method: "POST",
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, reason, note: note ?? null })
     })
 };
 

@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { api, theoryApi } from "./api";
 import { t } from "./i18n/uz";
-import { QuestionMedia } from "./ui/components";
+import type { Dict } from "./i18n/uz";
+import {
+  AppBar, Badge, BottomSheet, Button, Card, Chip, EmptyState, Expandable,
+  IconAlert, IconCheck, ListRow, QuestionMedia, Screen, Skeleton
+} from "./ui/components";
 import type {
   AnswerResult,
   FavoriteItem,
@@ -11,18 +15,20 @@ import type {
   LightDetail,
   MarkingCard,
   MarkingDetail,
-  NextQuestion,
   SearchResult,
   SignCard,
   SignDetail,
   TheoryArticle,
+  TheoryArticleCard,
   TheoryBlock,
+  TheoryRule,
   TheorySection,
   TheorySectionCard,
   TheoryPracticeStart
 } from "./types";
 
-const FAMILIES: Array<[string, string]> = [
+// --------------------------------------------------------------------------- constants
+const FAMILIES: Array<[string, keyof Dict]> = [
   ["", "allFamilies"],
   ["warning", "familyWarning"],
   ["priority", "familyPriority"],
@@ -33,17 +39,78 @@ const FAMILIES: Array<[string, string]> = [
   ["additional_plate", "familyAdditionalPlate"]
 ];
 
-// Lazy-loaded media: <img loading="lazy"> / <video preload="metadata">. Never the whole
-// library up front.
-function Media({ url, alt }: { url: string | null; alt: string }) {
-  if (!url) return null;
-  const isVideo = /\.(mp4|webm)$/i.test(url);
-  if (isVideo) {
-    return <video className="theory-media" src={url} controls preload="metadata" playsInline />;
-  }
-  return <img className="theory-media" src={url} alt={alt} loading="lazy" />;
+type ReportTarget = "section" | "article" | "sign" | "marking" | "gesture" | "light" | "rule";
+type ReportReason = "wrong_answer" | "unclear_explanation" | "image_problem" | "outdated_rule" | "typo" | "other";
+const REPORT_REASONS: Array<[ReportReason, keyof Dict]> = [
+  ["wrong_answer", "reasonWrongAnswer"],
+  ["unclear_explanation", "reasonUnclear"],
+  ["image_problem", "reasonImage"],
+  ["outdated_rule", "reasonOutdated"],
+  ["typo", "reasonTypo"],
+  ["other", "reasonOther"]
+];
+
+function optionLabel(position: number): string {
+  return "ABCDE"[position - 1] || String(position);
 }
 
+function resultTypeLabel(type: SearchResult["type"]): string {
+  switch (type) {
+    case "section": return t("sections");
+    case "article": return t("articleKind");
+    case "sign": return t("signs");
+    case "marking": return t("markings");
+    case "gesture": return t("gestures");
+    case "light": return t("lights");
+    case "rule": return t("rule");
+  }
+}
+
+// --------------------------------------------------------------------------- data fetching
+// Generic fetch hook with explicit loading / error / retry. Every screen uses it so no
+// fetch swallows errors: failures surface as an error state with a retry button.
+function useFetch<T>(fn: () => Promise<T>, deps: React.DependencyList) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    fn()
+      .then((d) => { if (alive) { setData(d); setLoading(false); } })
+      .catch((e: unknown) => { if (alive) { setError(String((e as Error).message)); setLoading(false); } });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, nonce]);
+  return { data, loading, error, reload };
+}
+
+// Shared loading (skeleton) / error (retry) surface, rendered while data is not ready.
+function LoadOrError({ error, onRetry, rows = 3 }: { error: string | null; onRetry: () => void; rows?: number }) {
+  if (error) {
+    return (
+      <Card>
+        <EmptyState icon={<IconAlert size={36} />} message={t("loadFailed")}
+          action={<Button onClick={onRetry}>{t("retry")}</Button>} />
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      {Array.from({ length: rows }).map((_, i) => (
+        <Fragment key={i}>
+          <Skeleton height={44} />
+          {i < rows - 1 && <div style={{ height: 8 }} />}
+        </Fragment>
+      ))}
+    </Card>
+  );
+}
+
+// --------------------------------------------------------------------------- safe block renderer
 // SAFE block renderer: fixed component set, TEXT NODES ONLY (no raw HTML injection).
 function Block({ block }: { block: TheoryBlock }) {
   const body = block.body || "";
@@ -109,90 +176,203 @@ function Block({ block }: { block: TheoryBlock }) {
   }
 }
 
-function FavButton({ targetType, targetId }: { targetType: string; targetId: string }) {
-  const [saved, setSaved] = useState(false);
-  const [favId, setFavId] = useState<string | null>(null);
-  const toggle = async () => {
-    if (saved && favId) {
-      await theoryApi.removeFavorite(favId);
-      setSaved(false);
-      setFavId(null);
-    } else {
-      const r = await theoryApi.addFavorite(targetType, targetId);
-      setSaved(true);
-      setFavId(r.id);
-    }
-  };
+function RuleCard({ rule }: { rule: TheoryRule }) {
   return (
-    <button className="secondary" onClick={toggle}>
-      {saved ? `★ ${t("saved")}` : `☆ ${t("save2")}`}
-    </button>
-  );
-}
-
-// A small in-Theory practice runner reusing the no-leak loop.
-function TheoryPractice({ start, onExit }: { start: TheoryPracticeStart; onExit: () => void }) {
-  const [index, setIndex] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [result, setResult] = useState<AnswerResult | null>(null);
-  const q: NextQuestion | undefined = start.questions[index];
-
-  async function submit() {
-    if (!q || !selected) return;
-    const r = await api.submitAnswer(start.session_id, q.question_id, selected);
-    setResult(r);
-  }
-  function next() {
-    setResult(null);
-    setSelected(null);
-    setIndex((i) => i + 1);
-  }
-
-  if (!q) {
-    return (
-      <div className="card theory">
-        <p>{t("noResults")}</p>
-        <button className="secondary" onClick={onExit}>{t("back")}</button>
-      </div>
-    );
-  }
-  return (
-    <div className="card theory">
-      <button className="secondary" onClick={onExit}>{t("back")}</button>
-      <p className="muted">{index + 1} / {start.questions_total}</p>
-      <h1>{q.prompt}</h1>
-      {q.media && <QuestionMedia media={q.media} />}
-      {q.options.map((o) => {
-        let cls = "option";
-        if (result) {
-          if (o.id === result.correct_option_id) cls += " correct";
-          else if (o.id === selected) cls += " wrong";
-        } else if (o.id === selected) cls += " selected";
-        const graded = result?.options.find((g) => g.id === o.id);
-        return (
-          <div key={o.id}>
-            <button className={cls} disabled={!!result} onClick={() => setSelected(o.id)}>{o.text}</button>
-            {graded && <div className="explain">{graded.explanation}</div>}
-          </div>
-        );
-      })}
-      {!result ? (
-        <button onClick={submit} disabled={!selected}>{t("submit")}</button>
-      ) : (
-        <>
-          <p><strong>{result.is_correct ? t("correct") : t("incorrect")}</strong></p>
-          {result.rule && (
-            <div className="rule"><strong>{t("rule")}: {result.rule.code}</strong>
-              <p className="explain">{result.rule.text}</p></div>
-          )}
-          <button onClick={next}>{t("next")}</button>
-        </>
-      )}
+    <div className="rule theory-rule">
+      <strong>{t("rule")}: {rule.code}</strong>
+      {rule.text && <p className="explain">{rule.text}</p>}
     </div>
   );
 }
 
-type View =
+// --------------------------------------------------------------------------- favourites toggle
+function FavButton({ targetType, targetId }: { targetType: string; targetId: string }) {
+  const [saved, setSaved] = useState(false);
+  const [favId, setFavId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (saved && favId) {
+        await theoryApi.removeFavorite(favId);
+        setSaved(false);
+        setFavId(null);
+      } else {
+        const r = await theoryApi.addFavorite(targetType, targetId);
+        setSaved(true);
+        setFavId(r.id);
+      }
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ui-stack ui-stack--sm">
+      <Button variant="secondary" disabled={busy} onClick={toggle}>
+        {saved ? `★ ${t("saved")}` : `☆ ${t("save2")}`}
+      </Button>
+      {error && <p className="ui-muted">{error}</p>}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- content report
+function ReportSheet({ targetType, targetId, onClose }:
+  { targetType: ReportTarget; targetId: string; onClose: () => void }) {
+  const [reason, setReason] = useState<ReportReason | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!reason) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await theoryApi.report(targetType, targetId, reason, note.trim() || undefined);
+      setDone(true);
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <h2 className="ui-h1" style={{ fontSize: 18 }}>{t("reportIssue")}</h2>
+      {done ? (
+        <div className="ui-stack" style={{ marginTop: 12 }}>
+          <Badge tone="success"><IconCheck size={16} /> {t("reportSent")}</Badge>
+          <Button block onClick={onClose}>{t("back")}</Button>
+        </div>
+      ) : (
+        <div className="ui-stack" style={{ marginTop: 12 }}>
+          <p className="ui-field-label">{t("reportReason")}</p>
+          <div className="ui-chips">
+            {REPORT_REASONS.map(([key, labelKey]) => (
+              <Chip key={key} active={reason === key} onClick={() => setReason(key)}>{t(labelKey)}</Chip>
+            ))}
+          </div>
+          <textarea className="ui-input" style={{ minHeight: 84, padding: 8, resize: "vertical" }}
+            placeholder={t("reportNotePlaceholder")} value={note}
+            onChange={(e) => setNote(e.target.value)} />
+          {error && <p className="ui-muted">{error}</p>}
+          <div className="ui-row" style={{ gap: 8 }}>
+            <Button block disabled={!reason || busy} onClick={submit}>{t("reportSend")}</Button>
+            <Button variant="secondary" onClick={onClose}>{t("cancel")}</Button>
+          </div>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+function ReportButton({ targetType, targetId }: { targetType: ReportTarget; targetId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="ghost" onClick={() => setOpen(true)}>{t("reportIssue")}</Button>
+      {open && <ReportSheet targetType={targetType} targetId={targetId} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+// --------------------------------------------------------------------------- in-theory practice
+// No-answer-leak runner: correctness / explanations only appear AFTER submit (from `result`).
+function TheoryPractice({ start, onExit }: { start: TheoryPracticeStart; onExit: () => void }) {
+  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [result, setResult] = useState<AnswerResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const q = start.questions[index];
+
+  const submit = async () => {
+    if (!q || !selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.submitAnswer(start.session_id, q.question_id, selected);
+      setResult(r);
+    } catch (e) {
+      setError(String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const next = () => {
+    setResult(null);
+    setSelected(null);
+    setIndex((i) => i + 1);
+  };
+
+  if (!q) {
+    return (
+      <Screen>
+        <AppBar title={t("practiceThis")} />
+        <Card>
+          <EmptyState icon={<IconCheck size={40} />} message={t("noResults")}
+            action={<Button onClick={onExit}>{t("back")}</Button>} />
+        </Card>
+      </Screen>
+    );
+  }
+  return (
+    <Screen>
+      <AppBar title={t("practiceThis")} subtitle={`${index + 1} / ${start.questions_total}`}
+        right={<Button variant="ghost" onClick={onExit}>{t("back")}</Button>} />
+      <Card>
+        {q.media && <QuestionMedia media={q.media} />}
+        <h2 className="ui-h1" style={{ fontSize: 18, marginTop: q.media ? 12 : 0 }}>{q.prompt}</h2>
+        <div className="ui-stack ui-stack--sm" style={{ marginTop: 12 }}>
+          {q.options.map((o) => {
+            let state: "idle" | "selected" | "correct" | "wrong" = "idle";
+            if (result) {
+              if (o.id === result.correct_option_id) state = "correct";
+              else if (o.id === selected) state = "wrong";
+            } else if (o.id === selected) {
+              state = "selected";
+            }
+            const graded = result?.options.find((g) => g.id === o.id);
+            return (
+              <div key={o.id}>
+                <button className={"ui-option" + (state !== "idle" ? ` ui-option--${state}` : "")}
+                  disabled={!!result} onClick={() => setSelected(o.id)}>
+                  <span className="ui-option__marker">{optionLabel(o.position)}</span>
+                  <span>{o.text}</span>
+                </button>
+                {graded && graded.explanation && <div className="explain">{graded.explanation}</div>}
+              </div>
+            );
+          })}
+        </div>
+        {!result ? (
+          <Button block style={{ marginTop: 16 }} disabled={!selected || busy} onClick={submit}>{t("submit")}</Button>
+        ) : (
+          <div className="ui-stack" style={{ marginTop: 16 }}>
+            {result.is_correct
+              ? <Badge tone="success">✓ {t("correct")}</Badge>
+              : <Badge tone="danger">✕ {t("incorrect")}</Badge>}
+            {result.rule && (
+              <Expandable defaultOpen title={`${t("rule")} — ${result.rule.code}`}>{result.rule.text}</Expandable>
+            )}
+            <Button block onClick={next}>{t("next")}</Button>
+          </div>
+        )}
+        {error && <p className="ui-muted">{error}</p>}
+      </Card>
+    </Screen>
+  );
+}
+
+// --------------------------------------------------------------------------- theory area
+export type TheoryView =
   | { name: "home" }
   | { name: "section"; slug: string }
   | { name: "article"; slug: string }
@@ -201,54 +381,117 @@ type View =
   | { name: "markings" }
   | { name: "gestures" }
   | { name: "lights" }
-  | { name: "favorites" };
+  | { name: "favorites" }
+  | { name: "rule"; code: string };
 
-export function TheoryArea({ onExit }: { onExit: () => void }) {
-  const [view, setView] = useState<View>({ name: "home" });
+type NavKey = "home" | "signs" | "markings" | "gestures" | "lights" | "favorites";
+const NAV_KEYS: Array<[NavKey, keyof Dict]> = [
+  ["home", "theoryHome"],
+  ["signs", "signs"],
+  ["markings", "markings"],
+  ["gestures", "gestures"],
+  ["lights", "lights"],
+  ["favorites", "favorites"]
+];
+
+export function TheoryArea({ onExit, initialView }: { onExit: () => void; initialView?: TheoryView }) {
+  // TheoryArea unmounts when leaving the Theory tab, so useState(initialView) is enough to
+  // open on a specific view (e.g. a rule) and default back to home on the next entry.
+  const [view, setView] = useState<TheoryView>(initialView ?? { name: "home" });
+  const [, setHistory] = useState<TheoryView[]>([]);
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
+
   const [practice, setPractice] = useState<TheoryPracticeStart | null>(null);
+  const [practiceBusy, setPracticeBusy] = useState(false);
+  const [practiceError, setPracticeError] = useState<string | null>(null);
+  const lastPractice = useRef<{ type: "article" | "sign"; id: string } | null>(null);
+
+  const go = useCallback((v: TheoryView) => { setHistory((h) => [...h, viewRef.current]); setView(v); }, []);
+  const navTop = useCallback((v: TheoryView) => { setHistory([]); setView(v); }, []);
+  const back = useCallback(() => {
+    setHistory((h) => {
+      if (h.length === 0) { onExit(); return h; }
+      setView(h[h.length - 1]);
+      return h.slice(0, -1);
+    });
+  }, [onExit]);
 
   const startPractice = useCallback(async (type: "article" | "sign", id: string) => {
+    lastPractice.current = { type, id };
+    setPracticeError(null);
+    setPracticeBusy(true);
     try {
       const s = await theoryApi.startPractice(type, id);
       setPractice(s);
     } catch (e) {
-      alert(String((e as Error).message));
+      setPracticeError(String((e as Error).message));
+    } finally {
+      setPracticeBusy(false);
     }
   }, []);
+  const retryPractice = useCallback(() => {
+    const lp = lastPractice.current;
+    if (lp) void startPractice(lp.type, lp.id);
+  }, [startPractice]);
 
   if (practice) return <TheoryPractice start={practice} onExit={() => setPractice(null)} />;
+  if (practiceBusy) {
+    return (
+      <Screen>
+        <AppBar title={t("practiceThis")} />
+        <Card><Skeleton height={180} /><div style={{ height: 12 }} /><Skeleton height={44} /></Card>
+      </Screen>
+    );
+  }
+  if (practiceError) {
+    return (
+      <Screen>
+        <AppBar title={t("practiceThis")} />
+        <Card>
+          <EmptyState icon={<IconAlert size={36} />} message={t("loadFailed")}
+            action={
+              <div className="ui-row" style={{ gap: 8 }}>
+                <Button onClick={retryPractice}>{t("retry")}</Button>
+                <Button variant="secondary" onClick={() => setPracticeError(null)}>{t("back")}</Button>
+              </div>
+            } />
+        </Card>
+      </Screen>
+    );
+  }
 
-  const nav = (
-    <div className="theory-tabs">
-      <button className="secondary" onClick={() => setView({ name: "home" })}>{t("theoryHome")}</button>
-      <button className="secondary" onClick={() => setView({ name: "signs" })}>{t("signs")}</button>
-      <button className="secondary" onClick={() => setView({ name: "markings" })}>{t("markings")}</button>
-      <button className="secondary" onClick={() => setView({ name: "gestures" })}>{t("gestures")}</button>
-      <button className="secondary" onClick={() => setView({ name: "lights" })}>{t("lights")}</button>
-      <button className="secondary" onClick={() => setView({ name: "favorites" })}>{t("favorites")}</button>
-    </div>
-  );
+  const activeKey: NavKey | "" =
+    view.name === "section" || view.name === "article" ? "home"
+      : view.name === "sign" ? "signs"
+        : view.name === "rule" ? ""
+          : view.name;
 
   return (
-    <div className="theory-wrap">
-      <div className="card theory">
-        <button className="secondary" onClick={onExit}>{t("backHome")}</button>
-        {nav}
+    <Screen>
+      <AppBar title={t("theoryHome")}
+        right={<Button variant="ghost" onClick={back}>{t("back")}</Button>} />
+      <div className="ui-chips" style={{ marginBottom: 12 }}>
+        {NAV_KEYS.map(([key, labelKey]) => (
+          <Chip key={key} active={activeKey === key} onClick={() => navTop({ name: key } as TheoryView)}>
+            {t(labelKey)}
+          </Chip>
+        ))}
       </div>
+
       {view.name === "home" && (
         <TheoryHome
-          onOpenSection={(slug) => setView({ name: "section", slug })}
-          onOpenResult={(r) => openResult(r, setView)}
-          onOpenCatalogue={(name) => setView({ name } as View)}
-        />
+          onOpenSection={(slug) => go({ name: "section", slug })}
+          onOpenResult={(r) => openResult(r, go)}
+          onOpenCatalogue={(v) => navTop(v)} />
       )}
       {view.name === "section" && (
-        <SectionView slug={view.slug} onOpenArticle={(slug) => setView({ name: "article", slug })} />
+        <SectionView slug={view.slug} onOpenArticle={(slug) => go({ name: "article", slug })} />
       )}
       {view.name === "article" && (
         <ArticleView slug={view.slug} onPractice={(id) => startPractice("article", id)} />
       )}
-      {view.name === "signs" && <SignsView onOpen={(code) => setView({ name: "sign", code })} />}
+      {view.name === "signs" && <SignsView onOpen={(code) => go({ name: "sign", code })} />}
       {view.name === "sign" && (
         <SignView code={view.code} onPractice={(id) => startPractice("sign", id)} />
       )}
@@ -256,327 +499,498 @@ export function TheoryArea({ onExit }: { onExit: () => void }) {
       {view.name === "gestures" && <GesturesView />}
       {view.name === "lights" && <LightsView />}
       {view.name === "favorites" && <FavoritesView />}
-    </div>
+      {view.name === "rule" && (
+        <RuleView code={view.code}
+          onOpenArticle={(slug) => go({ name: "article", slug })}
+          onOpenSign={(code) => go({ name: "sign", code })} />
+      )}
+    </Screen>
   );
 }
 
-function openResult(r: SearchResult, setView: (v: View) => void) {
-  if (r.type === "section" && r.slug) setView({ name: "section", slug: r.slug });
-  else if (r.type === "article" && r.slug) setView({ name: "article", slug: r.slug });
-  else if (r.type === "sign" && r.code) setView({ name: "sign", code: r.code });
-  else if (r.type === "marking") setView({ name: "markings" });
-  else if (r.type === "gesture") setView({ name: "gestures" });
-  else if (r.type === "light") setView({ name: "lights" });
+function openResult(r: SearchResult, go: (v: TheoryView) => void) {
+  if (r.type === "section" && r.slug) go({ name: "section", slug: r.slug });
+  else if (r.type === "article" && r.slug) go({ name: "article", slug: r.slug });
+  else if (r.type === "sign" && r.code) go({ name: "sign", code: r.code });
+  else if (r.type === "rule" && r.code) go({ name: "rule", code: r.code });
+  else if (r.type === "marking") go({ name: "markings" });
+  else if (r.type === "gesture") go({ name: "gestures" });
+  else if (r.type === "light") go({ name: "lights" });
 }
 
-function TheoryHome({
-  onOpenSection,
-  onOpenResult,
-  onOpenCatalogue
-}: {
+// --------------------------------------------------------------------------- home
+function TheoryHome({ onOpenSection, onOpenResult, onOpenCatalogue }: {
   onOpenSection: (slug: string) => void;
   onOpenResult: (r: SearchResult) => void;
-  onOpenCatalogue: (name: "signs" | "markings" | "gestures" | "lights") => void;
+  onOpenCatalogue: (v: TheoryView) => void;
 }) {
-  const [sections, setSections] = useState<TheorySectionCard[]>([]);
+  const sec = useFetch(() => theoryApi.sections(), []);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
-
-  useEffect(() => {
-    theoryApi.sections().then((r) => setSections(r.sections)).catch(() => undefined);
-  }, []);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchNonce, setSearchNonce] = useState(0);
 
   useEffect(() => {
     if (q.trim().length < 2) {
       setResults(null);
+      setSearchError(null);
+      setSearching(false);
       return;
     }
+    setSearching(true);
+    setSearchError(null);
     const id = setTimeout(() => {
-      theoryApi.search(q).then((r) => setResults(r.results)).catch(() => setResults([]));
+      theoryApi.search(q)
+        .then((r) => { setResults(r.results); setSearching(false); })
+        .catch((e) => { setSearchError(String((e as Error).message)); setSearching(false); });
     }, 250);
     return () => clearTimeout(id);
-  }, [q]);
+  }, [q, searchNonce]);
+
+  const catalogue: Array<[TheoryView, string, keyof Dict, keyof Dict | null]> = [
+    [{ name: "signs" }, "🚸", "signs", "signsCatalogueHint"],
+    [{ name: "markings" }, "🛣️", "markings", null],
+    [{ name: "gestures" }, "🧍", "gestures", null],
+    [{ name: "lights" }, "🚦", "lights", null]
+  ];
 
   return (
-    <div className="card theory">
-      <h1>{t("theoryHome")}</h1>
-      <input placeholder={t("searchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
-      {results !== null ? (
-        <div className="theory-search-results">
-          {results.length === 0 && <p className="muted">{t("noResults")}</p>}
-          {results.map((r) => (
-            <button key={`${r.type}-${r.id}`} className="secondary theory-result" onClick={() => onOpenResult(r)}>
-              <span className="theory-badge">{r.type}</span> {r.title}
-              {r.subtitle && <span className="muted"> · {r.subtitle}</span>}
-            </button>
-          ))}
-        </div>
+    <div className="ui-stack">
+      <input className="ui-input" placeholder={t("searchPlaceholder")} value={q}
+        onChange={(e) => setQ(e.target.value)} />
+
+      {results !== null || searching || searchError ? (
+        <>
+          {searching && <LoadOrError error={null} onRetry={() => setSearchNonce((n) => n + 1)} rows={3} />}
+          {searchError && <LoadOrError error={searchError} onRetry={() => setSearchNonce((n) => n + 1)} />}
+          {!searching && !searchError && results !== null && (
+            results.length === 0 ? (
+              <Card><EmptyState message={t("noResults")} /></Card>
+            ) : (
+              <div className="ui-stack ui-stack--sm">
+                {results.map((r) => (
+                  <ListRow key={`${r.type}-${r.id}`} title={r.title}
+                    subtitle={r.subtitle ? `${resultTypeLabel(r.type)} · ${r.subtitle}` : resultTypeLabel(r.type)}
+                    onClick={() => onOpenResult(r)} />
+                ))}
+              </div>
+            )
+          )}
+        </>
       ) : (
         <>
-          <div className="theory-grid">
-            <button className="theory-tile" onClick={() => onOpenCatalogue("signs")}>
-              <strong>🚸 {t("signs")}</strong>
-              <span className="muted">{t("signsCatalogueHint")}</span>
-            </button>
-            <button className="theory-tile" onClick={() => onOpenCatalogue("markings")}>
-              <strong>🛣️ {t("markings")}</strong>
-            </button>
-            <button className="theory-tile" onClick={() => onOpenCatalogue("gestures")}>
-              <strong>🧍 {t("gestures")}</strong>
-            </button>
-            <button className="theory-tile" onClick={() => onOpenCatalogue("lights")}>
-              <strong>🚦 {t("lights")}</strong>
-            </button>
-          </div>
-          <div className="theory-list">
-            {sections.map((s) => (
-              <button key={s.id} className="theory-tile" onClick={() => onOpenSection(s.slug)}>
-                <strong>{s.title}</strong>
-                {s.subtitle && <span className="muted">{s.subtitle}</span>}
-                {s.progress && (
-                  <span className="muted">{s.progress.viewed} / {s.progress.total} {t("viewed")}</span>
-                )}
-              </button>
+          <div className="ui-stack ui-stack--sm">
+            {catalogue.map(([target, emoji, titleKey, hintKey]) => (
+              <ListRow key={titleKey} icon={<span style={{ fontSize: 20 }}>{emoji}</span>}
+                title={t(titleKey)} subtitle={hintKey ? t(hintKey) : undefined}
+                onClick={() => onOpenCatalogue(target)} />
             ))}
           </div>
+
+          {!sec.data ? (
+            <LoadOrError error={sec.error} onRetry={sec.reload} rows={4} />
+          ) : sec.data.sections.length === 0 ? (
+            <Card><EmptyState message={t("noData")} /></Card>
+          ) : (
+            <div className="ui-stack ui-stack--sm">
+              {sec.data.sections.map((s: TheorySectionCard) => (
+                <ListRow key={s.id} title={s.title} subtitle={s.subtitle || undefined}
+                  right={s.progress
+                    ? <Badge>{s.progress.viewed}/{s.progress.total}</Badge>
+                    : undefined}
+                  onClick={() => onOpenSection(s.slug)} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
   );
 }
 
+// --------------------------------------------------------------------------- section
 function SectionView({ slug, onOpenArticle }: { slug: string; onOpenArticle: (slug: string) => void }) {
-  const [section, setSection] = useState<TheorySection | null>(null);
-  useEffect(() => {
-    theoryApi.section(slug).then(setSection).catch(() => undefined);
-  }, [slug]);
-  if (!section) return <div className="card theory"><p>{t("loading")}</p></div>;
+  const { data, error, reload } = useFetch<TheorySection>(() => theoryApi.section(slug), [slug]);
+  if (!data) return <LoadOrError error={error} onRetry={reload} rows={4} />;
   return (
-    <div className="card theory">
-      <h1>{section.title}</h1>
-      {section.subtitle && <p className="muted">{section.subtitle}</p>}
-      <div className="theory-list">
-        {section.articles.map((a) => (
-          <button key={a.id} className="theory-tile" onClick={() => onOpenArticle(a.slug)}>
-            <strong>{a.title}</strong>
-            {a.summary && <span className="muted">{a.summary}</span>}
-            {a.progress_state && a.progress_state !== "none" && (
-              <span className="theory-badge">{a.progress_state}</span>
-            )}
-          </button>
-        ))}
+    <div className="ui-stack">
+      <div>
+        <h2 className="ui-h1">{data.title}</h2>
+        {data.subtitle && <p className="ui-muted">{data.subtitle}</p>}
       </div>
-    </div>
-  );
-}
-
-function ArticleView({ slug, onPractice }: { slug: string; onPractice: (id: string) => void }) {
-  const [article, setArticle] = useState<TheoryArticle | null>(null);
-  useEffect(() => {
-    theoryApi.article(slug).then(setArticle).catch(() => undefined);
-  }, [slug]);
-  if (!article) return <div className="card theory"><p>{t("loading")}</p></div>;
-  return (
-    <div className="card theory">
-      <h1>{article.title}</h1>
-      {article.summary && <p className="muted">{article.summary}</p>}
-      <Media url={article.hero_url} alt={article.title} />
-      <FavButton targetType="article" targetId={article.id} />
-      <div className="theory-blocks">
-        {article.blocks.map((b) => <Block key={b.id} block={b} />)}
-      </div>
-      {article.linked_question_count > 0 && (
-        <button onClick={() => onPractice(article.id)}>
-          {t("practiceThis")} ({article.linked_question_count})
-        </button>
+      {data.articles.length === 0 ? (
+        <Card><EmptyState message={t("noResults")} /></Card>
+      ) : (
+        <div className="ui-stack ui-stack--sm">
+          {data.articles.map((a: TheoryArticleCard) => (
+            <ListRow key={a.id} title={a.title} subtitle={a.summary || undefined}
+              right={a.progress_state && a.progress_state !== "none"
+                ? <Badge tone="accent">{a.progress_state}</Badge>
+                : undefined}
+              onClick={() => onOpenArticle(a.slug)} />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function SignsView({ onOpen }: { onOpen: (code: string) => void }) {
-  const [signs, setSigns] = useState<SignCard[]>([]);
-  const [family, setFamily] = useState("");
-  useEffect(() => {
-    theoryApi.signs(family || undefined).then((r) => setSigns(r.signs)).catch(() => undefined);
-  }, [family]);
+// --------------------------------------------------------------------------- article
+function ArticleView({ slug, onPractice }: { slug: string; onPractice: (id: string) => void }) {
+  const { data, error, reload } = useFetch<TheoryArticle>(() => theoryApi.article(slug), [slug]);
+  if (!data) return <LoadOrError error={error} onRetry={reload} rows={5} />;
   return (
-    <div className="card theory">
-      <h1>{t("signs")}</h1>
-      <div className="theory-tabs">
-        {FAMILIES.map(([key, label]) => (
-          <button key={key} className={"secondary" + (family === key ? " marked" : "")} onClick={() => setFamily(key)}>
-            {t(label as never)}
-          </button>
+    <div className="ui-stack">
+      <Card>
+        <QuestionMedia url={data.hero_url} mediaType="image" alt={data.title} />
+        <h2 className="ui-h1" style={{ marginTop: data.hero_url ? 12 : 0 }}>{data.title}</h2>
+        {data.summary && <p className="ui-muted">{data.summary}</p>}
+        <div style={{ marginTop: 12 }}>
+          <FavButton targetType="article" targetId={data.id} />
+        </div>
+      </Card>
+
+      <Card>
+        <div className="theory-blocks">
+          {data.blocks.map((b) => <Block key={b.id} block={b} />)}
+        </div>
+      </Card>
+
+      {data.linked_question_count > 0 && (
+        <Button block onClick={() => onPractice(data.id)}>
+          {t("practiceThis")} ({data.linked_question_count})
+        </Button>
+      )}
+      <ReportButton targetType="article" targetId={data.id} />
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- signs
+function SignsView({ onOpen }: { onOpen: (code: string) => void }) {
+  const [family, setFamily] = useState("");
+  const { data, error, reload } = useFetch(() => theoryApi.signs(family || undefined), [family]);
+  return (
+    <div className="ui-stack">
+      <h2 className="ui-h1">{t("signs")}</h2>
+      <div className="ui-chips">
+        {FAMILIES.map(([key, labelKey]) => (
+          <Chip key={key} active={family === key} onClick={() => setFamily(key)}>{t(labelKey)}</Chip>
         ))}
       </div>
-      <div className="theory-grid">
-        {signs.map((s) => (
-          <button key={s.id} className="theory-tile sign" onClick={() => onOpen(s.code)}>
-            {s.media_url ? <img className="theory-sign-img" src={s.media_url} alt={s.name} loading="lazy" /> : <div className="theory-sign-ph">{s.code}</div>}
-            <strong>{s.code}</strong>
-            <span className="muted">{s.name}</span>
-          </button>
-        ))}
-        {signs.length === 0 && <p className="muted">{t("noResults")}</p>}
-      </div>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : data.signs.length === 0 ? (
+        <Card><EmptyState message={t("noResults")} /></Card>
+      ) : (
+        <div className="theory-grid">
+          {data.signs.map((s: SignCard) => (
+            <button key={s.id} className="theory-tile sign" onClick={() => onOpen(s.code)}>
+              {s.media_url
+                ? <img className="theory-sign-img" src={s.media_url} alt={s.name} loading="lazy" />
+                : <div className="theory-sign-ph">{s.code}</div>}
+              <strong>{s.code}</strong>
+              <span className="muted">{s.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function SignView({ code, onPractice }: { code: string; onPractice: (id: string) => void }) {
-  const [sign, setSign] = useState<SignDetail | null>(null);
-  useEffect(() => {
-    theoryApi.sign(code).then(setSign).catch(() => undefined);
-  }, [code]);
-  if (!sign) return <div className="card theory"><p>{t("loading")}</p></div>;
+  const { data, error, reload } = useFetch<SignDetail>(() => theoryApi.sign(code), [code]);
+  if (!data) return <LoadOrError error={error} onRetry={reload} rows={5} />;
   return (
-    <div className="card theory">
-      <Media url={sign.media_url} alt={sign.name} />
-      <h1>{sign.code} — {sign.name}</h1>
-      <FavButton targetType="sign" targetId={sign.id} />
-      <p><strong>{t("meaning")}:</strong> {sign.meaning}</p>
-      <p><strong>{t("whatToDo")}:</strong> {sign.driver_action}</p>
-      {sign.important && <p><strong>{t("important")}:</strong> {sign.important}</p>}
-      {sign.exam_trap && <p className="theory-callout warn">{t("commonMistake")}: {sign.exam_trap}</p>}
-      {sign.memory_tip && <p className="theory-callout tip">{t("memoryTip")}: {sign.memory_tip}</p>}
-      {sign.rules.map((r) => (
-        <div key={r.code} className="rule"><strong>{t("rule")}: {r.code}</strong><p className="explain">{r.text}</p></div>
-      ))}
-      {sign.linked_question_count > 0 && (
-        <button onClick={() => onPractice(sign.id)}>{t("practiceThis")} ({sign.linked_question_count})</button>
+    <div className="ui-stack">
+      <Card>
+        <QuestionMedia url={data.media_url} mediaType="image" alt={data.name} />
+        <h2 className="ui-h1" style={{ marginTop: data.media_url ? 12 : 0 }}>{data.code} — {data.name}</h2>
+        <div style={{ marginTop: 12 }}>
+          <FavButton targetType="sign" targetId={data.id} />
+        </div>
+      </Card>
+
+      <Card>
+        <div className="ui-stack ui-stack--sm">
+          <p><strong>{t("meaning")}:</strong> {data.meaning}</p>
+          <p><strong>{t("whatToDo")}:</strong> {data.driver_action}</p>
+          {data.important && <p><strong>{t("important")}:</strong> {data.important}</p>}
+          {data.exam_trap && <p className="theory-callout warn">{t("commonMistake")}: {data.exam_trap}</p>}
+          {data.memory_tip && <p className="theory-callout tip">{t("memoryTip")}: {data.memory_tip}</p>}
+          {data.rules.map((r) => <RuleCard key={r.code} rule={r} />)}
+        </div>
+      </Card>
+
+      {data.linked_question_count > 0 && (
+        <Button block onClick={() => onPractice(data.id)}>
+          {t("practiceThis")} ({data.linked_question_count})
+        </Button>
+      )}
+      <ReportButton targetType="sign" targetId={data.id} />
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- markings
+function MarkingsView() {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data, error, reload } = useFetch(() => theoryApi.markings(), []);
+  if (openId) return <MarkingDetailView id={openId} onBack={() => setOpenId(null)} />;
+  return (
+    <div className="ui-stack">
+      <h2 className="ui-h1">{t("markings")}</h2>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : data.markings.length === 0 ? (
+        <Card><EmptyState message={t("noResults")} /></Card>
+      ) : (
+        <div className="theory-grid">
+          {data.markings.map((m: MarkingCard) => (
+            <button key={m.id} className="theory-tile" onClick={() => setOpenId(m.id)}>
+              {m.media_url && <img className="theory-sign-img" src={m.media_url} alt={m.name} loading="lazy" />}
+              <strong>{m.name}</strong><span className="muted">{m.group}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function MarkingsView() {
-  const [items, setItems] = useState<MarkingCard[]>([]);
-  const [detail, setDetail] = useState<MarkingDetail | null>(null);
-  useEffect(() => { theoryApi.markings().then((r) => setItems(r.markings)).catch(() => undefined); }, []);
-  if (detail) {
-    return (
-      <div className="card theory">
-        <button className="secondary" onClick={() => setDetail(null)}>{t("back")}</button>
-        <Media url={detail.media_url} alt={detail.name} />
-        <h1>{detail.name}</h1>
-        <FavButton targetType="marking" targetId={detail.id} />
-        <p><strong>{t("meaning")}:</strong> {detail.meaning}</p>
-        {detail.can_cross && <p><strong>{t("canCross")}:</strong> {detail.can_cross}</p>}
-        {detail.can_stop_park && <p><strong>{t("canStopPark")}:</strong> {detail.can_stop_park}</p>}
-        {detail.conflict_rule && <p className="theory-callout warn">{t("conflictRule")}: {detail.conflict_rule}</p>}
-        {detail.rules.map((r) => <div key={r.code} className="rule"><strong>{r.code}</strong><p className="explain">{r.text}</p></div>)}
-      </div>
-    );
-  }
+function MarkingDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+  const { data, error, reload } = useFetch<MarkingDetail>(() => theoryApi.marking(id), [id]);
   return (
-    <div className="card theory">
-      <h1>{t("markings")}</h1>
-      <div className="theory-grid">
-        {items.map((m) => (
-          <button key={m.id} className="theory-tile" onClick={() => theoryApi.marking(m.id).then(setDetail)}>
-            {m.media_url && <img className="theory-sign-img" src={m.media_url} alt={m.name} loading="lazy" />}
-            <strong>{m.name}</strong><span className="muted">{m.group}</span>
-          </button>
-        ))}
-        {items.length === 0 && <p className="muted">{t("noResults")}</p>}
-      </div>
+    <div className="ui-stack">
+      <Button variant="ghost" onClick={onBack}>{t("back")}</Button>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : (
+        <>
+          <Card>
+            <QuestionMedia url={data.media_url} mediaType="image" alt={data.name} />
+            <h2 className="ui-h1" style={{ marginTop: data.media_url ? 12 : 0 }}>{data.name}</h2>
+            <div style={{ marginTop: 12 }}>
+              <FavButton targetType="marking" targetId={data.id} />
+            </div>
+          </Card>
+          <Card>
+            <div className="ui-stack ui-stack--sm">
+              <p><strong>{t("meaning")}:</strong> {data.meaning}</p>
+              {data.can_cross && <p><strong>{t("canCross")}:</strong> {data.can_cross}</p>}
+              {data.can_stop_park && <p><strong>{t("canStopPark")}:</strong> {data.can_stop_park}</p>}
+              {data.conflict_rule && <p className="theory-callout warn">{t("conflictRule")}: {data.conflict_rule}</p>}
+              {data.rules.map((r) => <RuleCard key={r.code} rule={r} />)}
+            </div>
+          </Card>
+          <ReportButton targetType="marking" targetId={data.id} />
+        </>
+      )}
     </div>
   );
 }
 
+// --------------------------------------------------------------------------- gestures
 function GesturesView() {
-  const [items, setItems] = useState<GestureCard[]>([]);
-  const [detail, setDetail] = useState<GestureDetail | null>(null);
-  useEffect(() => { theoryApi.gestures().then((r) => setItems(r.gestures)).catch(() => undefined); }, []);
-  if (detail) {
-    return (
-      <div className="card theory">
-        <button className="secondary" onClick={() => setDetail(null)}>{t("back")}</button>
-        {detail.animation_url ? <Media url={detail.animation_url} alt={detail.name} /> : <Media url={detail.media_url} alt={detail.name} />}
-        <h1>{detail.name}</h1>
-        <FavButton targetType="gesture" targetId={detail.id} />
-        <p><strong>{t("position")}:</strong> {detail.position_desc}</p>
-        <p className="theory-callout tip"><strong>{t("allowed")}:</strong> {detail.allowed}</p>
-        <p className="theory-callout warn"><strong>{t("forbidden")}:</strong> {detail.forbidden}</p>
-        {detail.memory_tip && <p className="theory-callout tip">{t("memoryTip")}: {detail.memory_tip}</p>}
-        {detail.rules.map((r) => <div key={r.code} className="rule"><strong>{r.code}</strong><p className="explain">{r.text}</p></div>)}
-      </div>
-    );
-  }
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data, error, reload } = useFetch(() => theoryApi.gestures(), []);
+  if (openId) return <GestureDetailView id={openId} onBack={() => setOpenId(null)} />;
   return (
-    <div className="card theory">
-      <h1>{t("gestures")}</h1>
-      <div className="theory-grid">
-        {items.map((g) => (
-          <button key={g.id} className="theory-tile" onClick={() => theoryApi.gesture(g.id).then(setDetail)}>
-            {g.media_url && <img className="theory-sign-img" src={g.media_url} alt={g.name} loading="lazy" />}
-            <strong>{g.name}</strong>
-          </button>
-        ))}
-        {items.length === 0 && <p className="muted">{t("noResults")}</p>}
-      </div>
-    </div>
-  );
-}
-
-function LightsView() {
-  const [items, setItems] = useState<LightCard[]>([]);
-  const [detail, setDetail] = useState<LightDetail | null>(null);
-  useEffect(() => { theoryApi.lights().then((r) => setItems(r.lights)).catch(() => undefined); }, []);
-  if (detail) {
-    return (
-      <div className="card theory">
-        <button className="secondary" onClick={() => setDetail(null)}>{t("back")}</button>
-        <Media url={detail.media_url} alt={detail.title} />
-        <h1>{detail.title}</h1>
-        <FavButton targetType="light" targetId={detail.id} />
-        <p><strong>{t("meaning")}:</strong> {detail.meaning}</p>
-        {detail.movement_permitted && <p><strong>{t("movementPermitted")}:</strong> {detail.movement_permitted}</p>}
-        {detail.direction_permitted && <p><strong>{t("directionPermitted")}:</strong> {detail.direction_permitted}</p>}
-        {detail.exceptions && <p><strong>{t("exceptions")}:</strong> {detail.exceptions}</p>}
-        {detail.typical_exam_situation && <p className="theory-callout example">{t("examSituation")}: {detail.typical_exam_situation}</p>}
-        {detail.rules.map((r) => <div key={r.code} className="rule"><strong>{r.code}</strong><p className="explain">{r.text}</p></div>)}
-      </div>
-    );
-  }
-  return (
-    <div className="card theory">
-      <h1>{t("lights")}</h1>
-      <div className="theory-grid">
-        {items.map((l) => (
-          <button key={l.id} className="theory-tile" onClick={() => theoryApi.light(l.id).then(setDetail)}>
-            {l.media_url && <img className="theory-sign-img" src={l.media_url} alt={l.title} loading="lazy" />}
-            <strong>{l.title}</strong><span className="muted">{l.kind}</span>
-          </button>
-        ))}
-        {items.length === 0 && <p className="muted">{t("noResults")}</p>}
-      </div>
-    </div>
-  );
-}
-
-function FavoritesView() {
-  const [items, setItems] = useState<FavoriteItem[]>([]);
-  const load = useCallback(() => {
-    theoryApi.favorites().then((r) => setItems(r.favorites)).catch(() => undefined);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  return (
-    <div className="card theory">
-      <h1>{t("favorites")}</h1>
-      {items.length === 0 && <p className="muted">{t("noFavorites")}</p>}
-      <div className="theory-list">
-        {items.map((f) => (
-          <div key={f.id} className="theory-fav">
-            <span className="theory-badge">{f.target_type}</span>
-            <span>{f.target_id}</span>
-            <button className="secondary" onClick={async () => { await theoryApi.removeFavorite(f.id); load(); }}>
-              {t("removeFav")}
+    <div className="ui-stack">
+      <h2 className="ui-h1">{t("gestures")}</h2>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : data.gestures.length === 0 ? (
+        <Card><EmptyState message={t("noResults")} /></Card>
+      ) : (
+        <div className="theory-grid">
+          {data.gestures.map((g: GestureCard) => (
+            <button key={g.id} className="theory-tile" onClick={() => setOpenId(g.id)}>
+              {g.media_url && <img className="theory-sign-img" src={g.media_url} alt={g.name} loading="lazy" />}
+              <strong>{g.name}</strong>
             </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GestureDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+  const { data, error, reload } = useFetch<GestureDetail>(() => theoryApi.gesture(id), [id]);
+  return (
+    <div className="ui-stack">
+      <Button variant="ghost" onClick={onBack}>{t("back")}</Button>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : (
+        <>
+          <Card>
+            {data.animation_url
+              ? <QuestionMedia url={data.animation_url} mediaType="video" alt={data.name} />
+              : <QuestionMedia url={data.media_url} mediaType="image" alt={data.name} />}
+            <h2 className="ui-h1" style={{ marginTop: 12 }}>{data.name}</h2>
+            <div style={{ marginTop: 12 }}>
+              <FavButton targetType="gesture" targetId={data.id} />
+            </div>
+          </Card>
+          <Card>
+            <div className="ui-stack ui-stack--sm">
+              <p><strong>{t("position")}:</strong> {data.position_desc}</p>
+              <p className="theory-callout tip"><strong>{t("allowed")}:</strong> {data.allowed}</p>
+              <p className="theory-callout warn"><strong>{t("forbidden")}:</strong> {data.forbidden}</p>
+              {data.memory_tip && <p className="theory-callout tip">{t("memoryTip")}: {data.memory_tip}</p>}
+              {data.rules.map((r) => <RuleCard key={r.code} rule={r} />)}
+            </div>
+          </Card>
+          <ReportButton targetType="gesture" targetId={data.id} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- lights
+function LightsView() {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data, error, reload } = useFetch(() => theoryApi.lights(), []);
+  if (openId) return <LightDetailView id={openId} onBack={() => setOpenId(null)} />;
+  return (
+    <div className="ui-stack">
+      <h2 className="ui-h1">{t("lights")}</h2>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : data.lights.length === 0 ? (
+        <Card><EmptyState message={t("noResults")} /></Card>
+      ) : (
+        <div className="theory-grid">
+          {data.lights.map((l: LightCard) => (
+            <button key={l.id} className="theory-tile" onClick={() => setOpenId(l.id)}>
+              {l.media_url && <img className="theory-sign-img" src={l.media_url} alt={l.title} loading="lazy" />}
+              <strong>{l.title}</strong><span className="muted">{l.kind}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LightDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+  const { data, error, reload } = useFetch<LightDetail>(() => theoryApi.light(id), [id]);
+  return (
+    <div className="ui-stack">
+      <Button variant="ghost" onClick={onBack}>{t("back")}</Button>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={4} />
+      ) : (
+        <>
+          <Card>
+            <QuestionMedia url={data.media_url} mediaType="image" alt={data.title} />
+            <h2 className="ui-h1" style={{ marginTop: data.media_url ? 12 : 0 }}>{data.title}</h2>
+            <div style={{ marginTop: 12 }}>
+              <FavButton targetType="light" targetId={data.id} />
+            </div>
+          </Card>
+          <Card>
+            <div className="ui-stack ui-stack--sm">
+              <p><strong>{t("meaning")}:</strong> {data.meaning}</p>
+              {data.movement_permitted && <p><strong>{t("movementPermitted")}:</strong> {data.movement_permitted}</p>}
+              {data.direction_permitted && <p><strong>{t("directionPermitted")}:</strong> {data.direction_permitted}</p>}
+              {data.exceptions && <p><strong>{t("exceptions")}:</strong> {data.exceptions}</p>}
+              {data.typical_exam_situation && <p className="theory-callout example">{t("examSituation")}: {data.typical_exam_situation}</p>}
+              {data.rules.map((r) => <RuleCard key={r.code} rule={r} />)}
+            </div>
+          </Card>
+          <ReportButton targetType="light" targetId={data.id} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- favorites
+function FavoritesView() {
+  const { data, error, reload } = useFetch(() => theoryApi.favorites(), []);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const remove = async (favId: string) => {
+    setRemoving(favId);
+    try {
+      await theoryApi.removeFavorite(favId);
+      reload();
+    } finally {
+      setRemoving(null);
+    }
+  };
+  return (
+    <div className="ui-stack">
+      <h2 className="ui-h1">{t("favorites")}</h2>
+      {!data ? (
+        <LoadOrError error={error} onRetry={reload} rows={3} />
+      ) : data.favorites.length === 0 ? (
+        <Card><EmptyState message={t("noFavorites")} /></Card>
+      ) : (
+        <div className="ui-stack ui-stack--sm">
+          {data.favorites.map((f: FavoriteItem) => (
+            <ListRow key={f.id} title={f.target_id} subtitle={f.target_type}
+              right={
+                <Button variant="secondary" disabled={removing === f.id}
+                  onClick={() => remove(f.id)}>{t("removeFav")}</Button>
+              } />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- rule (Practice -> Theory)
+function RuleView({ code, onOpenArticle, onOpenSign }: {
+  code: string;
+  onOpenArticle: (slug: string) => void;
+  onOpenSign: (code: string) => void;
+}) {
+  const { data, error, reload } = useFetch(() => theoryApi.byRule(code), [code]);
+  if (!data) return <LoadOrError error={error} onRetry={reload} rows={4} />;
+  const empty = data.articles.length === 0 && data.signs.length === 0;
+  return (
+    <div className="ui-stack">
+      <Card>
+        <h2 className="ui-h1">{t("rule")} — {data.rule.code}</h2>
+        {data.rule.title && <p className="ui-muted">{data.rule.title}</p>}
+        {data.rule.text && <p className="theory-text" style={{ marginTop: 8 }}>{data.rule.text}</p>}
+      </Card>
+
+      {empty ? (
+        <Card><EmptyState message={t("ruleNoMaterial")} /></Card>
+      ) : (
+        <>
+          <p className="ui-field-label">{t("ruleMaterials")}</p>
+          {data.articles.length > 0 && (
+            <div className="ui-stack ui-stack--sm">
+              {data.articles.map((a: TheoryArticleCard) => (
+                <ListRow key={a.id} title={a.title}
+                  subtitle={a.summary ? `${t("articleKind")} · ${a.summary}` : t("articleKind")}
+                  onClick={() => onOpenArticle(a.slug)} />
+              ))}
+            </div>
+          )}
+          {data.signs.length > 0 && (
+            <div className="ui-stack ui-stack--sm">
+              {data.signs.map((s: SignCard) => (
+                <ListRow key={s.id}
+                  icon={s.media_url
+                    ? <img className="theory-sign-img" style={{ width: 40, height: 40 }} src={s.media_url} alt={s.name} loading="lazy" />
+                    : undefined}
+                  title={`${s.code} — ${s.name}`} subtitle={t("signs")}
+                  onClick={() => onOpenSign(s.code)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

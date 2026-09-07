@@ -8,6 +8,7 @@ import { watchTheme } from "./ui/theme";
 import { t, topicLabel } from "./i18n/uz";
 import { AdminArea } from "./admin";
 import { TheoryArea } from "./theory";
+import type { TheoryView } from "./theory";
 import {
   AppBar, Badge, BottomNav, Button, Card, Chip, EmptyState, Expandable,
   IconAlert, IconCheck, IconExam, IconFlame, IconHome, IconInbox, IconPractice,
@@ -108,7 +109,8 @@ function Onboarding({ onDone }: { onDone: () => void }) {
 // ------------------------------------------------------------------ Practice runner
 type RunnerConfig = { source: string; topic: string | null; title: string };
 
-function PracticeRunner({ config, onExit }: { config: RunnerConfig; onExit: () => void }) {
+function PracticeRunner({ config, onExit, onLearnRule }:
+  { config: RunnerConfig; onExit: () => void; onLearnRule?: (ruleCode: string) => void }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [question, setQuestion] = useState<NextQuestion | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -244,6 +246,11 @@ function PracticeRunner({ config, onExit }: { config: RunnerConfig; onExit: () =
                 <Expandable title={`${t("ruleSection")} — ${result.rule.code}`}>
                   {result.rule.text}
                 </Expandable>
+              )}
+              {!result.is_correct && result.rule?.code && onLearnRule && (
+                <Button variant="secondary" block onClick={() => onLearnRule(result.rule!.code)}>
+                  {t("learnRule")}
+                </Button>
               )}
               <Button block onClick={loadNext}>{t("next")}</Button>
             </div>
@@ -881,6 +888,7 @@ function App() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [mockActive, setMockActive] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [theoryInitialView, setTheoryInitialView] = useState<TheoryView | null>(null);
 
   useEffect(() => {
     readyTelegram();
@@ -895,9 +903,17 @@ function App() {
 
   const nav: Nav = useMemo(() => ({
     runPractice: (config) => setDetail({ kind: "practice", config }),
-    goTab: (target) => { setDetail(null); setAdminOpen(false); setTab(target); },
+    goTab: (target) => { setDetail(null); setAdminOpen(false); setTheoryInitialView(null); setTab(target); },
     openDetail: (kind) => setDetail({ kind })
   }), []);
+
+  // Practice -> Theory: open the Theory tab directly on the rule linked to a wrong answer.
+  const onLearnRule = useCallback((ruleCode: string) => {
+    setTheoryInitialView({ name: "rule", code: ruleCode });
+    setDetail(null);
+    setAdminOpen(false);
+    setTab("theory");
+  }, []);
 
   if (!user) return <div className="ui-app"><Login onLogin={(u) => { setUser(u); setOnboarded(u.onboarding_completed); }} /></div>;
   if (!onboarded) return <div className="ui-app"><Onboarding onDone={() => setOnboarded(true)} /></div>;
@@ -913,7 +929,7 @@ function App() {
 
   let content: React.ReactNode;
   if (detail?.kind === "practice") {
-    content = <PracticeRunner config={detail.config} onExit={() => setDetail(null)} />;
+    content = <PracticeRunner config={detail.config} onExit={() => setDetail(null)} onLearnRule={onLearnRule} />;
   } else if (detail?.kind === "ranking") {
     content = <RankingDetail onExit={() => setDetail(null)} />;
   } else if (detail?.kind === "progress") {
@@ -926,7 +942,7 @@ function App() {
   } else if (tab === "practice") {
     content = <PracticeTab nav={nav} />;
   } else if (tab === "theory") {
-    content = <TheoryArea onExit={() => nav.goTab("home")} />;
+    content = <TheoryArea initialView={theoryInitialView ?? undefined} onExit={() => nav.goTab("home")} />;
   } else if (tab === "exam") {
     content = <ExamTab onMockActive={setMockActive} />;
   } else {
@@ -942,7 +958,7 @@ function App() {
       {content}
       {!hideNav && (
         <BottomNav active={tab} items={navItems}
-          onChange={(k) => { setDetail(null); setAdminOpen(false); setTab(k); }} />
+          onChange={(k) => { setDetail(null); setAdminOpen(false); setTheoryInitialView(null); setTab(k); }} />
       )}
     </div>
   );
