@@ -1,5 +1,16 @@
 # 19 — Admin Studio UX & Structure
 
+> **Status update (shipped 2026-09-07).** The role model is now **two levels only:
+> admin / user** — admin = membership in `ADMIN_TELEGRAM_IDS` (∪ `SUPERADMIN_TELEGRAM_IDS`),
+> resolved server-side per request; there is **no** author/reviewer/superadmin tier and
+> **no** role-assignment endpoint (`POST /api/admin/users/{id}/role` was removed).
+> Question authoring is **save = live**: create/edit publishes immediately (no
+> draft→review→publish steps in the UI), gated only by the minimal quality floor
+> (2–5 options, exactly one correct, prompt-or-media). Sections mentioning role-aware
+> navigation, reviewer gates, or the role endpoint below are historical; integrity
+> guarantees (immutable versions, no-answer-leak, timer, `needs_reverification`, audit)
+> are unchanged.
+
 Goal: make the admin studio **well-structured, discoverable, and comfortable** so a content
 admin can run the whole product (questions **and** the Theory catalogue) from the Mini App UI —
 without shell scripts or raw API calls. This is primarily a **frontend restructure + wiring**

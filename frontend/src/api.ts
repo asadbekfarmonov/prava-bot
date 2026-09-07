@@ -171,12 +171,6 @@ export const adminApi = {
       method: "PUT",
       body: JSON.stringify(payload)
     }),
-  submitReview: (vid: string) =>
-    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/submit-review`, { method: "POST", body: "{}" }),
-  review: (vid: string) =>
-    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/review`, { method: "POST", body: "{}" }),
-  publish: (vid: string) =>
-    request<import("./types").AdminVersionOut>(`/api/admin/versions/${vid}/publish`, { method: "POST", body: "{}" }),
   qa: (qid: string) => request<import("./types").QaPayload>(`/api/admin/questions/${qid}/qa`),
   searchRules: (q: string) =>
     request<{ rules: import("./types").AdminRuleOut[] }>(`/api/admin/rules${q ? `?q=${encodeURIComponent(q)}` : ""}`),

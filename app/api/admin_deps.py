@@ -9,7 +9,7 @@ Every admin endpoint enforces ``require_role(...)`` server-side; hiding frontend
 routes is NOT a control. A user removed from the allowlist loses capability on the
 next request (membership is resolved server-side each time, never cached in the
 cookie). ``min_role`` is retained in the signature for source compatibility with the
-existing typed deps (AuthorUser/ReviewerUser/AdminUser/SuperadminUser) but is ignored:
+existing typed deps (AuthorUser/ReviewerUser/AdminUser) but is ignored:
 an allowlisted admin passes every gate.
 """
 
@@ -77,11 +77,6 @@ def require_admin() -> Callable[..., User]:
     return require_role(AdminRole.ADMIN)
 
 
-def require_superadmin() -> Callable[..., User]:
-    return require_role(AdminRole.SUPERADMIN)
-
-
 AuthorUser = Depends(require_role(AdminRole.CONTENT_AUTHOR))
 ReviewerUser = Depends(require_role(AdminRole.CONTENT_REVIEWER))
 AdminUser = Depends(require_role(AdminRole.ADMIN))
-SuperadminUser = Depends(require_role(AdminRole.SUPERADMIN))

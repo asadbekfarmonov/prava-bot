@@ -14,9 +14,10 @@ def upsert_telegram_user(db: Session, payload: dict[str, Any]) -> User:
     """Create/update a user from a *trusted* Telegram payload.
 
     The caller must have validated initData first; we never trust a client-supplied
-    id/role. ``admin_role`` is NOT set here — it is allowlist-gated + assigned
-    server-side by a superadmin (out of slice-1 scope), so it can never be smuggled
-    through a login payload.
+    id/role. ``admin_role`` is NOT set here and is never consulted for gating — admin
+    capability is resolved from the ADMIN_TELEGRAM_IDS allowlist server-side on every
+    request (two-level admin/user model), so it can never be smuggled through a login
+    payload.
     """
     telegram_id = str(payload["id"])
     user = db.scalar(select(User).where(User.telegram_id == telegram_id))
@@ -28,18 +29,9 @@ def upsert_telegram_user(db: Session, payload: dict[str, Any]) -> User:
     user.last_name = payload.get("last_name")
     user.photo_url = payload.get("photo_url")
     user.last_seen_at = datetime.now(timezone.utc)
-    # Env-seed the bootstrap superadmin(s). This is the ONLY place a role is assigned
-    # without an existing superadmin acting; all other assignments go through the
-    # audited superadmin role-assignment endpoint. Never assigned from client input.
-    from app.domain.enums import AdminRole
-
-    settings = get_settings()
-    try:
-        tid_int = int(telegram_id)
-    except (TypeError, ValueError):
-        tid_int = None
-    if tid_int is not None and tid_int in settings.superadmin_ids and user.admin_role is None:
-        user.admin_role = AdminRole.SUPERADMIN
+    # Two-level model: admin_role is NOT set here. Admin capability is resolved from the
+    # ADMIN_TELEGRAM_IDS allowlist server-side on every request (see admin_deps); the
+    # users.admin_role DB column is vestigial and never consulted for gating.
     db.commit()
     db.refresh(user)
     return user

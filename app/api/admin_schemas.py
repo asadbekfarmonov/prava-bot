@@ -1,8 +1,9 @@
 """Strict input schemas for admin endpoints (mass-assignment protection).
 
 Admin authoring legitimately sets ``is_correct`` on options, but no admin schema ever
-accepts ``admin_role`` from a content body — role changes go only through the
-superadmin role-assignment endpoint.
+accepts ``admin_role`` from a request body. Admin capability is resolved from the
+ADMIN_TELEGRAM_IDS allowlist server-side (two-level admin/user model); there is no
+role-assignment endpoint.
 """
 
 from __future__ import annotations
