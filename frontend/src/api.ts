@@ -344,5 +344,32 @@ export const adminApi = {
     request<import("./types").TheoryVersionOut>(`/api/admin/theory/article-versions/${vid}/publish`, { method: "POST", body: "{}" }),
 
   theoryReviewQueue: () =>
-    request<import("./types").ReviewQueueOut>("/api/admin/theory/review-queue")
+    request<import("./types").ReviewQueueOut>("/api/admin/theory/review-queue"),
+
+  // ---- Assessments (Testlar). Server-side role-gated; publish/lock validated server-side. ----
+  listAssessments: () =>
+    request<{ assessments: import("./types").AssessmentAdminOut[] }>("/api/admin/assessments"),
+  createAssessment: (payload: { type: string; title: string; description?: string }) =>
+    request<import("./types").AssessmentAdminOut>("/api/admin/assessments", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  getAssessment: (id: string) =>
+    request<import("./types").AssessmentAdminOut>(`/api/admin/assessments/${id}`),
+  updateAssessment: (id: string, patch: import("./types").AssessmentUpdateInput) =>
+    request<import("./types").AssessmentAdminOut>(`/api/admin/assessments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(patch)
+    }),
+  eligibleCount: (id: string) =>
+    request<{ eligible_count: number; question_count: number }>(
+      `/api/admin/assessments/${id}/eligible-count`
+    ),
+  publishAssessment: (id: string) =>
+    request<import("./types").AssessmentAdminOut>(`/api/admin/assessments/${id}/publish`, {
+      method: "POST",
+      body: "{}"
+    }),
+  archiveAssessment: (id: string) =>
+    request<{ id: string; status: string }>(`/api/admin/assessments/${id}`, { method: "DELETE" })
 };

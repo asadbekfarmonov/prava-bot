@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ADMIN_TABS } from "./routes";
+import type { AdminTab } from "./routes";
 import type { AdminNav } from "./useAdminNavigation";
 import { AdminTopBar } from "./AdminTopBar";
 import { AdminBottomNav } from "./AdminBottomNav";
@@ -7,6 +8,10 @@ import { QuickCreateSheet } from "./QuickCreateSheet";
 import type { QuickCreateKind } from "./QuickCreateSheet";
 import { Dashboard, QuestionsSection, TheorySection, ReviewQueue, ReportsQueue } from "./legacy";
 import { MediaLibrary } from "./MediaLibrary";
+import { AssessmentHub } from "./assessments/AssessmentHub";
+import { AssessmentEditor } from "./assessments/AssessmentEditor";
+
+type AssessmentView = { mode: "hub" } | { mode: "editor"; id?: string };
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -42,15 +47,24 @@ function MoreHub({ canReview, isAdmin, nav }: { canReview: boolean; isAdmin: boo
 
 export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [assessmentView, setAssessmentView] = useState<AssessmentView>({ mode: "hub" });
   const canReview = role === "content_reviewer" || role === "admin" || role === "superadmin";
   const isAdmin = role === "admin" || role === "superadmin";
   const { current, activeTab } = nav;
 
+  // Reset the Testlar sub-view to the hub whenever the tab itself is (re)selected.
+  function goTab(tab: AdminTab) {
+    if (tab === "assessments") setAssessmentView({ mode: "hub" });
+    nav.selectTab(tab);
+  }
+
   function quickPick(kind: QuickCreateKind) {
     setSheetOpen(false);
     if (kind === "question") nav.selectTab("questions");
-    else if (kind === "assessment") nav.selectTab("assessments");
-    else if (kind === "rule") nav.push({ kind: "rules" });
+    else if (kind === "assessment") {
+      setAssessmentView({ mode: "editor" }); // open the create flow directly
+      nav.selectTab("assessments");
+    } else if (kind === "rule") nav.push({ kind: "rules" });
     else nav.selectTab("theory"); // article/sign/marking/gesture/light -> Nazariya (deep routes land in later phases)
   }
 
@@ -82,7 +96,14 @@ export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }
       case "questions":
         return <QuestionsSection />;
       case "assessments":
-        return <Placeholder title="Testlar" />;
+        return assessmentView.mode === "editor" ? (
+          <AssessmentEditor
+            assessmentId={assessmentView.id}
+            onBack={() => setAssessmentView({ mode: "hub" })}
+          />
+        ) : (
+          <AssessmentHub onOpenEditor={(id) => setAssessmentView({ mode: "editor", id })} />
+        );
       case "theory":
         return <TheorySection canReview={canReview} />;
       case "more":
@@ -102,7 +123,7 @@ export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }
               key={t.tab}
               type="button"
               className={"admin-sidebar__item" + (activeTab === t.tab ? " is-active" : "")}
-              onClick={() => nav.selectTab(t.tab)}
+              onClick={() => goTab(t.tab)}
             >
               {t.label}
             </button>
@@ -111,7 +132,7 @@ export function AdminShell({ role, nav }: { role: string | null; nav: AdminNav }
         <main className="admin-content">{renderContent()}</main>
       </div>
       <button type="button" className="admin-fab" aria-label="Yangi yaratish" onClick={() => setSheetOpen(true)}>+</button>
-      <AdminBottomNav active={activeTab} onSelect={nav.selectTab} />
+      <AdminBottomNav active={activeTab} onSelect={goTab} />
       <QuickCreateSheet open={sheetOpen} isAdmin={isAdmin} onPick={quickPick} onClose={() => setSheetOpen(false)} />
     </div>
   );

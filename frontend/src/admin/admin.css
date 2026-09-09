@@ -213,3 +213,19 @@ textarea.admin-input { min-height: 88px; resize: vertical; }
 .media-detail__meta { display: flex; flex-direction: column; gap: 6px; }
 .media-detail__row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
 .media-detail__hash { font-size: 12px; word-break: break-all; text-align: right; }
+
+/* ---------------- Assessments (Testlar) editor layout helpers ---------------- */
+.assess-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.assess-check { flex-direction: row; align-items: center; gap: 10px; }
+.assess-check input { width: 20px; height: 20px; flex: 0 0 auto; }
+.assess-picker__results { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.assess-picker__row, .assess-picker__selrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--border, #e6e8ee); border-radius: 12px;
+  background: var(--surface, #fff); min-height: 44px;
+}
+.assess-picker__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assess-picker__prompt { overflow-wrap: anywhere; font-size: 14px; }
+.assess-picker__selected { list-style: decimal; padding-left: 20px; margin: 8px 0 0; display: flex;
+  flex-direction: column; gap: 8px; }
+.assess-picker__selrow { margin-left: 0; }

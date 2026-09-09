@@ -267,7 +267,69 @@ export const uz = {
   mediaDetailHash: "Kontent xesh",
   mediaDetailCreated: "Yaratilgan",
   mediaClose: "Yopish",
-  mediaBaseImage: "Asosiy rasm"
+  mediaBaseImage: "Asosiy rasm",
+
+  // ---- Admin: Assessments (Testlar) ----
+  assessmentsTitle: "Testlar",
+  assessmentsHint: "Test va sinovlarni yaratish va boshqarish",
+  assessmentNew: "+ Yangi test",
+  assessmentCreateTitle: "Yangi test",
+  assessmentTypeLabel: "Test turi",
+  assessmentTitleLabel: "Sarlavha",
+  assessmentDescriptionLabel: "Tavsif",
+  assessmentCreateBtn: "Yaratish",
+  assessmentEmpty: "Hali test yaratilmagan",
+  assessmentLoadFailed: "Testlarni yuklab bo'lmadi",
+  // type labels
+  atypeCustomTest: "Maxsus test",
+  atypePracticeTicket: "Mashq bileti",
+  atypeEndurance50: "50 talik sinov",
+  atypeEndurance100: "100 talik sinov",
+  atypeReadinessChallenge: "Tayyorlik sinovi",
+  atypeDailyChallenge: "Kunlik sinov",
+  // selection modes
+  selModeManual: "Qo'lda tanlash",
+  selModeRandom: "Filtr bo'yicha",
+  selectionModeLabel: "Savol tanlash usuli",
+  // reveal modes
+  revealEachAnswer: "Har javobdan keyin",
+  revealCompletion: "Yakunda",
+  revealLabel: "Tushuntirishlarni ko'rsatish",
+  // fields
+  questionCountLabel: "Savollar soni",
+  questionCountLocked: "Bu test turi uchun savollar soni qat'iy belgilangan.",
+  timeLimitLabel: "Vaqt chegarasi (daqiqa)",
+  timeLimitHint: "Bo'sh qoldirsangiz — vaqt chegarasi yo'q.",
+  passCorrectLabel: "O'tish uchun to'g'ri javoblar",
+  passCorrectHint: "Bo'sh qoldirsangiz — o'tish chegarasi yo'q.",
+  randomizeOrderLabel: "Savollar tartibini aralashtirish",
+  topicFiltersLabel: "Mavzular (filtr)",
+  difficultyFiltersLabel: "Qiyinlik darajasi",
+  difficulty1: "Oson",
+  difficulty2: "O'rta",
+  difficulty3: "Qiyin",
+  // manual question picker
+  questionPickerLabel: "Savollarni tanlash",
+  questionSearchPlaceholder: "Savol qidirish (matn)...",
+  questionAdd: "Qo'shish",
+  questionRemove: "Olib tashlash",
+  selectedQuestions: "Tanlangan savollar",
+  noQuestionsFound: "Savol topilmadi",
+  // eligible panel
+  eligiblePanelTitle: "Mos savollar",
+  eligibleCountLabel: "Mos keladigan savollar",
+  requiredCountLabel: "Kerakli savollar",
+  eligibleRefresh: "Yangilash",
+  eligibleOk: "Yetarli savol bor — nashr etsa bo'ladi.",
+  eligibleWarn: "Yetarli mos savol yo'q — nashr etib bo'lmaydi.",
+  // actions
+  assessmentSave: "Saqlash",
+  assessmentPublish: "Nashr etish",
+  assessmentArchive: "Arxivlash",
+  assessmentArchiveConfirm: "Bu testni arxivlashni tasdiqlaysizmi?",
+  assessmentPublished: "Test nashr etildi",
+  assessmentArchived: "Test arxivlandi",
+  savolWord: "savol"
 };
 export type Dict = typeof uz;
 export function t(key: keyof Dict): string {

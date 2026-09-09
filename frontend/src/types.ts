@@ -701,3 +701,59 @@ export interface MediaListOut {
   offset: number;
   items: MediaListItem[];
 }
+
+// ---- Admin Assessments studio (docs/spec: Testlar) ----
+// Shapes mirror app/services/assessments.py assessment_admin_out. Server-side role gating
+// and validation (locked question_count for endurance, publish eligibility) are authoritative.
+export type AssessmentType =
+  | "custom_test"
+  | "practice_ticket"
+  | "endurance_50"
+  | "endurance_100"
+  | "readiness_challenge"
+  | "daily_challenge";
+
+export type AssessmentSelectionMode = "manual" | "random_filter";
+export type AssessmentRevealMode = "each_answer" | "completion";
+
+export interface AssessmentVersionAdmin {
+  id: string;
+  version: number;
+  title: string;
+  description: string | null;
+  selection_mode: AssessmentSelectionMode;
+  question_count: number;
+  time_limit_seconds: number | null;
+  pass_correct: number | null;
+  show_explanations_after: AssessmentRevealMode;
+  topic_filters: string[] | null;
+  difficulty_filters: number[] | null;
+  randomize_order: boolean;
+  status: string;
+  question_ids: string[];
+  eligible_count: number;
+}
+
+export interface AssessmentAdminOut {
+  id: string;
+  slug: string;
+  type: string;
+  status: string;
+  current_version_id: string | null;
+  latest_version: AssessmentVersionAdmin | null;
+}
+
+// PUT /api/admin/assessments/{id} accepts any subset of these fields.
+export interface AssessmentUpdateInput {
+  title?: string;
+  description?: string;
+  selection_mode?: AssessmentSelectionMode;
+  time_limit_seconds?: number | null;
+  pass_correct?: number | null;
+  show_explanations_after?: AssessmentRevealMode;
+  randomize_order?: boolean;
+  topic_filters?: string[];
+  difficulty_filters?: number[];
+  question_count?: number;
+  question_ids?: string[];
+}
